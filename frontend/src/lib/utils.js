@@ -1,3 +1,10 @@
+import { clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs) {
+  return twMerge(clsx(inputs));
+}
+
 /**
  * Calculates the distance between two points in kilometers using the Haversine formula.
  */

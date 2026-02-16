@@ -1,17 +1,13 @@
-import React, { useState } from 'react';
-import { AlertCircle, MapPin, Navigation, Phone, Shield, Languages, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, MapPin, Navigation, Phone, Shield, Languages, CheckCircle, MessageSquare, Video, ShieldAlert, Heart, X } from 'lucide-react';
 import { ETHIOPIAN_HOSPITALS } from '../data/hospitals';
-import { getDistance } from '../lib/utils';
+import { getDistance, cn } from '../lib/utils';
 import { IncidentMap } from '../components/IncidentMap';
+import { EmergencyChat } from '../components/EmergencyChat';
+import { FirstAidGuide } from '../components/FirstAidGuide';
 import { supabase } from '../lib/supabase';
 import { TRANSLATIONS } from '../data/translations';
 import { useNotifications } from '../components/NotificationSystem';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
 
 const SuccessContent = ({ status, t, lang, nearestHospital, incidentId, onReset }) => {
   const [rating, setRating] = useState(0);
@@ -108,6 +104,9 @@ export const PanicPage = () => {
   const [incidentId, setIncidentId] = useState(null);
   const [status, setStatus] = useState('Pending');
   const [error, setError] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isFirstAidOpen, setIsFirstAidOpen] = useState(false);
+  const [isVideoSOSOpen, setIsVideoSOSOpen] = useState(false);
   const { addNotification } = useNotifications();
 
   const t = TRANSLATIONS[lang];
@@ -146,18 +145,31 @@ export const PanicPage = () => {
         setNearestHospital(closest);
 
         try {
-          const { data, error: sbError } = await supabase
+          const payload = { 
+            type, 
+            lat: latitude, 
+            lng: longitude, 
+            status: 'Pending',
+            reporter_phone: 'Web User',
+            triage_score: type === 'Fire' ? 10 : type === 'Medical' ? 9 : type === 'Police' ? 8 : 7
+          };
+
+          let { data, error: sbError } = await supabase
             .from('incidents')
-            .insert([
-              { 
-                type, 
-                lat: latitude, 
-                lng: longitude, 
-                status: 'Pending',
-                reporter_phone: 'Web User'
-              }
-            ])
+            .insert([payload])
             .select();
+
+          // Fallback: If triage_score column is missing, try again without it
+          if (sbError && sbError.message.includes('triage_score')) {
+            console.warn("⚠️ [PanicPage] triage_score column missing. Retrying basic insert...");
+            const { triage_score, ...basicPayload } = payload;
+            const retry = await supabase
+              .from('incidents')
+              .insert([basicPayload])
+              .select();
+            data = retry.data;
+            sbError = retry.error;
+          }
 
           if (sbError) throw sbError;
           if (data) {
@@ -198,6 +210,10 @@ export const PanicPage = () => {
           }
         } catch (err) {
           console.error("Supabase Error:", err.message);
+          setError(lang === 'en' 
+            ? `Connection Error: ${err.message}. Please apply SQL migrations.` 
+            : `የመረጃ ቋት ችግር፡ ${err.message}። እባክዎ SQL ሚግሬሽኑን ይጫኑ።`
+          );
         }
 
         setLoading(false);
@@ -230,6 +246,26 @@ export const PanicPage = () => {
       </header>
 
       <main className="flex-1 flex flex-col gap-6 max-w-md mx-auto w-full">
+        {/* Progress & Action Bar */}
+        {incidentId && (
+          <div className="flex gap-2 animate-in slide-in-from-top-4 duration-500">
+            <button 
+              onClick={() => setIsFirstAidOpen(true)}
+              className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              First Aid
+            </button>
+            <button 
+              onClick={() => setIsVideoSOSOpen(true)}
+              className="flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Video className="w-4 h-4 text-red-500" />
+              Video SOS
+            </button>
+          </div>
+        )}
+
         {!incidentId ? (
           <>
             <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-white ring-1 ring-slate-100 text-center">
@@ -306,7 +342,76 @@ export const PanicPage = () => {
         )}
       </main>
 
+      {/* Floating Chat Button */}
+      {incidentId && (
+        <button 
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-6 right-6 bg-red-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all z-40 border-4 border-white"
+        >
+          <MessageSquare className="w-6 h-6" />
+          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse" />
+        </button>
+      )}
+
+      <EmergencyChat 
+        incidentId={incidentId} 
+        senderType="citizen" 
+        isOpen={isChatOpen} 
+        onClose={() => setIsChatOpen(false)} 
+      />
+
+      <FirstAidGuide 
+        isOpen={isFirstAidOpen} 
+        onClose={() => setIsFirstAidOpen(false)} 
+      />
+
+      {/* Simulated Video SOS Overlay */}
+      {isVideoSOSOpen && (
+        <div className="fixed inset-0 z-[110] bg-black animate-in fade-in duration-500 flex flex-col">
+          <div className="absolute top-10 left-6 text-white z-20">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 bg-red-600 rounded-full animate-ping" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Live Encrypted Link</span>
+            </div>
+            <h2 className="text-xl font-black italic tracking-tighter">THERMAL SOS STREAM</h2>
+          </div>
+          
+          <button 
+            onClick={() => setIsVideoSOSOpen(false)}
+            className="absolute top-10 right-6 z-20 bg-white/10 p-3 rounded-full text-white hover:bg-white/20"
+          >
+            <X className="w-6 h-6" />
+          </button>
+
+          {/* Visual Simulation */}
+          <div className="flex-1 bg-gradient-to-br from-slate-900 via-red-950/20 to-slate-900 opacity-60 flex items-center justify-center">
+             <div className="relative text-center">
+                <div className="flex gap-2 justify-center mb-4">
+                   {[...Array(4)].map((_, i) => <div key={i} className="w-1 h-12 bg-red-500/20 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />)}
+                </div>
+                <p className="text-red-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Syncing Visuals...</p>
+             </div>
+          </div>
+          
+          <div className="p-8 bg-slate-900/80 backdrop-blur-xl border-t border-white/5">
+             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest text-center mb-4">Dispatcher is viewing your camera to assess severity</p>
+             <button 
+              onClick={() => setIsVideoSOSOpen(false)}
+              className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-900/40"
+             >
+               End Stream
+             </button>
+          </div>
+        </div>
+      )}
+
       <footer className="mt-8 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+        <button 
+          onClick={() => alert("SOS Alert sent to your saved Emergency Contacts! 📱")}
+          className="mb-6 mx-auto bg-slate-200 text-slate-600 px-4 py-2 rounded-full hover:bg-red-100 hover:text-red-600 transition-all border border-slate-300"
+        >
+          Notify Family & Friends (SOS)
+        </button>
         <p>&copy; 2026 QuickReach Ethiopia</p>
       </footer>
     </div>

@@ -2,21 +2,46 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from '../components/NotificationSystem';
 import { IncidentMap } from '../components/IncidentMap';
-import { AlertTriangle, Clock, MapPin, Phone, CheckCircle, Play, Bell } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
-
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
+import { AlertTriangle, Clock, MapPin, Phone, CheckCircle, Play, Bell, MessageCircle } from 'lucide-react';
+import { EmergencyChat } from '../components/EmergencyChat';
+import { cn } from '../lib/utils';
 
 const ALERT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
 export const DispatcherPage = () => {
   const [incidents, setIncidents] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [ambulanceLocation, setAmbulanceLocation] = useState(null);
   const { addNotification } = useNotifications();
   const audioRef = useRef(new Audio(ALERT_SOUND_URL));
+
+  // Simulated Ambulance Movement
+  useEffect(() => {
+    if (selectedIncident?.status === 'Dispatched') {
+      // Start from a mock hospital (center of Addis)
+      const hospitalCoord = [9.030, 38.740];
+      const targetCoord = [selectedIncident.lat, selectedIncident.lng];
+      let step = 0;
+      const totalSteps = 100;
+      
+      const interval = setInterval(() => {
+        if (step >= totalSteps) {
+          clearInterval(interval);
+          return;
+        }
+        step++;
+        const currentLat = hospitalCoord[0] + (targetCoord[0] - hospitalCoord[0]) * (step / totalSteps);
+        const currentLng = hospitalCoord[1] + (targetCoord[1] - hospitalCoord[1]) * (step / totalSteps);
+        setAmbulanceLocation([currentLat, currentLng]);
+      }, 100); // Fast simulation
+
+      return () => clearInterval(interval);
+    } else {
+      setAmbulanceLocation(null);
+    }
+  }, [selectedIncident?.id, selectedIncident?.status]);
 
   useEffect(() => {
     fetchIncidents();
@@ -67,6 +92,7 @@ export const DispatcherPage = () => {
     const { data } = await supabase
       .from('incidents')
       .select('*')
+      .order('triage_score', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
     
     if (data) setIncidents(data);
@@ -146,6 +172,17 @@ export const DispatcherPage = () => {
                 </span>
               </div>
               
+              {/* AI Triage Score */}
+              <div className="flex items-center gap-2 mb-2">
+                <div className={cn(
+                  "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest",
+                  (incident.triage_score || 5) >= 8 ? "bg-red-500 text-white shadow-lg shadow-red-900/20" : "bg-slate-700 text-slate-300"
+                )}>
+                  AI TRIAGE: {incident.triage_score || 5}/10
+                </div>
+                {(incident.triage_score || 5) >= 8 && <div className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />}
+              </div>
+              
               <div className="mb-4">
                 <h3 className={cn(
                   "text-lg font-black tracking-tight",
@@ -187,7 +224,30 @@ export const DispatcherPage = () => {
         <div className="flex-1 bg-slate-950 relative">
           <IncidentMap 
             userLocation={selectedIncident ? [selectedIncident.lat, selectedIncident.lng] : null}
+            ambulanceLocation={ambulanceLocation}
+            allIncidents={incidents}
+            showHeatmap={showHeatmap}
             nearestHospital={null}
+          />
+
+          {/* Heatmap Toggle */}
+          <div className="absolute top-10 right-10 z-10">
+            <button 
+              onClick={() => setShowHeatmap(!showHeatmap)}
+              className={cn(
+                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md",
+                showHeatmap ? "bg-orange-500 text-white border-orange-400" : "bg-slate-900/80 text-slate-400 border-white/5"
+              )}
+            >
+              Layer: {showHeatmap ? 'Heatmap ACTIVE' : 'Standard View'}
+            </button>
+          </div>
+
+          <EmergencyChat 
+            incidentId={selectedIncident?.id} 
+            senderType="dispatcher" 
+            isOpen={isChatOpen} 
+            onClose={() => setIsChatOpen(false)} 
           />
           
           {/* Overlay Grid Effect */}
@@ -245,6 +305,14 @@ export const DispatcherPage = () => {
                  >
                    <Phone className="w-5 h-5 fill-slate-900 group-hover:scale-110 transition-transform" />
                    ESTABLISH LINK
+                 </button>
+
+                 <button 
+                  className="w-full bg-blue-600/20 text-blue-400 py-4 rounded-3xl font-black flex items-center justify-center gap-3 border border-blue-500/20 hover:bg-blue-600/30 transition-all font-sans"
+                  onClick={() => setIsChatOpen(true)}
+                 >
+                   <MessageCircle className="w-5 h-5" />
+                   OPEN INCIDENT CHAT
                  </button>
                  
                  <div className="grid grid-cols-2 gap-3">

@@ -67,15 +67,27 @@ export const USSDSimulator = () => {
     const lng = base.lng + (Math.random() - 0.5) * 0.01;
 
     try {
-      await supabase.from('incidents').insert([
-        { 
-          type, 
-          lat, 
-          lng, 
-          status: 'Pending',
-          reporter_phone: `USSD +251 (${subCity})`
-        }
-      ]);
+      const triageScore = type === 'Fire' ? 10 : type === 'Medical' ? 9 : 7;
+      const payload = { 
+        type, 
+        lat, 
+        lng, 
+        status: 'Pending',
+        reporter_phone: `USSD +251 (${subCity})`,
+        triage_score: triageScore
+      };
+
+      let { error } = await supabase.from('incidents').insert([payload]);
+
+      // Fallback: If triage_score column missing, retry basic
+      if (error && error.message.includes('triage_score')) {
+        console.warn("⚠️ [USSD] triage_score missing. Retrying basic...");
+        const { triage_score, ...basicPayload } = payload;
+        const retry = await supabase.from('incidents').insert([basicPayload]);
+        error = retry.error;
+      }
+      
+      if (error) throw error;
     } catch (err) {
       console.error("USSD Supabase error:", err);
     }
@@ -95,7 +107,7 @@ export const USSDSimulator = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50">
+    <div className="fixed bottom-6 left-6 z-50">
       {!isOpen ? (
         <button 
           onClick={() => setIsOpen(true)}
