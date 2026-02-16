@@ -12,11 +12,13 @@ function cn(...inputs) {
 export const USSDSimulator = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
-  const [ussdSession, setUssdSession] = useState(null); // null, 'MENU', 'MEDICAL', 'FIRE', 'SUCCESS'
+  const [ussdSession, setUssdSession] = useState(null); // null, 'MENU', 'PICK_LOCATION', 'CONFIRM', 'SUCCESS'
+  const [emergencyType, setEmergencyType] = useState(null);
+  const [subCity, setSubCity] = useState(null);
   const [sms, setSms] = useState(null);
 
   const handleKeypad = (val) => {
-    if (ussdSession && ussdSession !== 'MENU') return;
+    if (ussdSession && !['MENU', 'PICK_LOCATION'].includes(ussdSession)) return;
     setInput(prev => prev + val);
   };
 
@@ -30,17 +32,39 @@ export const USSDSimulator = () => {
 
   const handleMenuOption = (option) => {
     if (ussdSession === 'MENU') {
-      if (option === '1') setUssdSession('MEDICAL');
-      if (option === '2') setUssdSession('FIRE');
+      if (option === '1') {
+        setEmergencyType('Medical');
+        setUssdSession('PICK_LOCATION');
+      }
+      if (option === '2') {
+        setEmergencyType('Fire');
+        setUssdSession('PICK_LOCATION');
+      }
+    }
+  };
+
+  const handleLocationOption = (option) => {
+    const locations = { '1': 'Arada', '2': 'Bole', '3': 'Akaki', '4': 'Kolfe' };
+    if (locations[option]) {
+      setSubCity(locations[option]);
+      setUssdSession('CONFIRM');
     }
   };
 
   const confirmEmergency = async () => {
-    const type = ussdSession === 'MEDICAL' ? 'Medical' : 'Fire';
+    const type = emergencyType;
     
-    // Addis Ababa center for USSD simulation (since no GPS on fake phone)
-    const lat = 9.0197 + (Math.random() - 0.5) * 0.05;
-    const lng = 38.7469 + (Math.random() - 0.5) * 0.05;
+    // Coordinates based on sub-city (mocked)
+    const locations = {
+      'Arada': { lat: 9.035, lng: 38.751 },
+      'Bole': { lat: 8.989, lng: 38.788 },
+      'Akaki': { lat: 8.875, lng: 38.783 },
+      'Kolfe': { lat: 9.031, lng: 38.705 }
+    };
+
+    const base = locations[subCity] || { lat: 9.0197, lng: 38.7469 };
+    const lat = base.lat + (Math.random() - 0.5) * 0.01;
+    const lng = base.lng + (Math.random() - 0.5) * 0.01;
 
     try {
       await supabase.from('incidents').insert([
@@ -49,7 +73,7 @@ export const USSDSimulator = () => {
           lat, 
           lng, 
           status: 'Pending',
-          reporter_phone: 'USSD +251 9xx xxx xxx'
+          reporter_phone: `USSD +251 (${subCity})`
         }
       ]);
     } catch (err) {
@@ -60,7 +84,7 @@ export const USSDSimulator = () => {
     
     // Simulate SMS after 2 seconds
     setTimeout(() => {
-      setSms(`QuickReach: Your ${type} emergency has been logged. Dispatcher is being notified. Help is on the way!`);
+      setSms(`QuickReach: Your ${type} emergency in ${subCity} has been logged. Help is arriving!`);
     }, 2000);
   };
 
@@ -102,18 +126,29 @@ export const USSDSimulator = () => {
                 <button onClick={() => handleMenuOption('2')} className="block w-full text-left hover:bg-black/5 p-1">2. Fire</button>
                 <button onClick={reset} className="block w-full text-left hover:bg-black/5 p-1 mt-2 text-xs">0. Cancel</button>
               </div>
-            ) : ussdSession === 'MEDICAL' || ussdSession === 'FIRE' ? (
+            ) : ussdSession === 'PICK_LOCATION' ? (
+              <div className="w-full text-slate-900 font-mono text-sm">
+                <p className="border-b border-slate-400 pb-1 mb-2 font-bold uppercase">Select Location</p>
+                <button onClick={() => handleLocationOption('1')} className="block w-full text-left hover:bg-black/5 p-1">1. Arada</button>
+                <button onClick={() => handleLocationOption('2')} className="block w-full text-left hover:bg-black/5 p-1">2. Bole</button>
+                <button onClick={() => handleLocationOption('3')} className="block w-full text-left hover:bg-black/5 p-1">3. Akaki</button>
+                <button onClick={() => handleLocationOption('4')} className="block w-full text-left hover:bg-black/5 p-1">4. Kolfe</button>
+              </div>
+            ) : ussdSession === 'CONFIRM' ? (
               <div className="w-full text-slate-900 font-mono text-sm text-center">
-                <p className="mb-4">Confirm {ussdSession} Emergency?</p>
+                <p className="mb-4">Confirm {emergencyType} in {subCity}?</p>
                 <div className="flex gap-2">
                   <button onClick={confirmEmergency} className="flex-1 bg-slate-900 text-white py-1 rounded">Yes</button>
-                  <button onClick={() => setUssdSession('MENU')} className="flex-1 border border-slate-900 py-1 rounded">No</button>
+                  <button onClick={() => setUssdSession('PICK_LOCATION')} className="flex-1 border border-slate-900 py-1 rounded">No</button>
                 </div>
               </div>
             ) : (
               <div className="w-full text-slate-900 font-mono text-sm text-center">
                 <p className="text-green-800 font-bold mb-2">Request Sent!</p>
-                <p className="text-[10px]">Session Terminated.</p>
+                <div className="text-[10px] space-y-1">
+                  <p>Type: <span className="font-bold">{emergencyType}</span></p>
+                  <p>Area: <span className="font-bold">{subCity}</span></p>
+                </div>
                 <button onClick={reset} className="mt-4 text-[10px] underline">Back to Dial</button>
               </div>
             )}

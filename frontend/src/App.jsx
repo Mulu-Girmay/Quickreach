@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PanicPage } from './pages/PanicPage';
 import { DispatcherPage } from './pages/DispatcherPage';
 import { USSDSimulator } from './components/USSDSimulator';
+import { NotificationProvider } from './components/NotificationSystem';
 import './App.css';
 
 const queryClient = new QueryClient();
@@ -11,17 +12,19 @@ const queryClient = new QueryClient();
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router>
-        <div className="relative isolate">
-          <Routes>
-            <Route path="/" element={<PanicPage />} />
-            <Route path="/panic" element={<PanicPage />} />
-            <Route path="/dispatcher" element={<DispatcherPage />} />
-          </Routes>
-          
-          <USSDSimulator />
-        </div>
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <div className="relative isolate font-sans">
+            <Routes>
+              <Route path="/" element={<PanicPage />} />
+              <Route path="/panic" element={<PanicPage />} />
+              <Route path="/dispatcher" element={<DispatcherPage />} />
+            </Routes>
+            
+            <USSDSimulator />
+          </div>
+        </Router>
+      </NotificationProvider>
     </QueryClientProvider>
   );
 }
