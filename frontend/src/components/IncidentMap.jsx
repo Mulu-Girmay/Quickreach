@@ -16,6 +16,12 @@ let DefaultIcon = L.icon({
 
 L.Marker.prototype.options.icon = DefaultIcon;
 
+const VolunteerIcon = L.icon({
+  iconUrl: 'https://cdn-icons-png.flaticon.com/512/2589/2589175.png', // Heart/First Aid icon
+  iconSize: [30, 30],
+  iconAnchor: [15, 15],
+});
+
 const AmbulanceIcon = L.icon({
   iconUrl: 'https://cdn-icons-png.flaticon.com/512/1048/1048329.png',
   iconSize: [40, 40],
@@ -30,7 +36,7 @@ const ChangeView = ({ center }) => {
   return null;
 };
 
-export const IncidentMap = ({ userLocation, nearestHospital, ambulanceLocation, allIncidents, showHeatmap }) => {
+export const IncidentMap = ({ userLocation, nearestHospital, ambulanceLocation, allIncidents, showHeatmap, volunteers, showVolunteers }) => {
   const defaultCenter = [9.0197, 38.7469]; // Addis Ababa
   
   return (
@@ -83,6 +89,20 @@ export const IncidentMap = ({ userLocation, nearestHospital, ambulanceLocation, 
             </Popup>
           </Marker>
         )}
+
+        {showVolunteers && volunteers && volunteers.map(v => (
+          <Marker 
+            key={`vol-${v.id}`} 
+            position={[v.lat, v.lng]} 
+            icon={VolunteerIcon}
+          >
+            <Popup>
+              <div className="font-black text-blue-600 uppercase text-[10px] tracking-widest mb-1">Civilian Responder</div>
+              <div className="font-bold">{v.name}</div>
+              <div className="text-[9px] text-slate-500 uppercase font-black">Status: Available</div>
+            </Popup>
+          </Marker>
+        ))}
       </MapContainer>
     </div>
   );

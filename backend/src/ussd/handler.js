@@ -99,7 +99,7 @@ Choose Location:
       case STATES.CONFIRM:
         if (lastInput === '1') {
           // 3. FINAL TRIGGER
-          const result = await triggerEmergency(session.data, phoneNumber);
+          const result = await triggerEmergency(session.data, phoneNumber, sessionId);
           response = `END Help is coming from ${result.nearestFacility}. Reference: #QR-${result.incidentId.slice(0,5)}`;
           clearSession(sessionId);
         } else {
@@ -122,10 +122,22 @@ Choose Location:
 };
 
 /**
- * Logic to insert into Supabase and find nearest facility
+ * Logic to insert into Supabase and find nearest facility with capacity
  */
-async function triggerEmergency(data, phone) {
-  // Mock coordinates based on chosen sub-city for demo
+async function triggerEmergency(data, phone, sessionId) {
+  // 1. IDEMPOTENCY CHECK
+  const { data: existing } = await supabase
+    .from('incidents')
+    .select('id, status')
+    .eq('session_id', sessionId)
+    .single();
+
+  if (existing) {
+    console.log(`[IDEMPOTENCY] Re-returning incident for session ${sessionId}`);
+    return { incidentId: existing.id, nearestFacility: "Processing..." };
+  }
+
+  // Mock coordinates based on chosen sub-city
   const coords = {
     'Bole': { lat: 8.9894, lng: 38.7884 },
     'Piassa': { lat: 9.0356, lng: 38.7512 },
@@ -134,7 +146,55 @@ async function triggerEmergency(data, phone) {
   };
   const { lat, lng } = coords[data.locationName] || coords['Detected'];
 
-  // Insert to DB using service role to bypass RLS for system-level USSD reports
+  // 2. INCIDENT COLLAPSING (Deduplication)
+  // Check if someone else reported a similar incident nearby in the last 10 mins
+  const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const { data: nearby } = await supabase
+    .from('incidents')
+    .select('id')
+    .eq('type', data.type)
+    .eq('status', 'Pending')
+    .gt('created_at', tenMinsAgo)
+    .filter('lat', 'gte', lat - 0.005)
+    .filter('lat', 'lte', lat + 0.005)
+    .filter('lng', 'gte', lng - 0.005)
+    .filter('lng', 'lte', lng + 0.005)
+    .limit(1);
+
+  if (nearby && nearby.length > 0) {
+    console.log(`[COLLAPSING] Incident deduplicated to parent ${nearby[0].id}`);
+    // Register as a "child" incident
+    const { data: child } = await supabase
+      .from('incidents')
+      .insert([{
+        type: data.type,
+        lat, lng,
+        status: 'Collapsed',
+        reporter_phone: `USSD ${phone}`,
+        source: 'USSD',
+        session_id: sessionId,
+        parent_incident_id: nearby[0].id,
+        is_collapsed: true
+      }])
+      .select().single();
+    
+    return { incidentId: child.id, nearestFacility: "Request Merged with Active Response" };
+  }
+
+  // 3. DYNAMIC ROUTING (Capacity Check)
+  // Find nearest hospital with remaining capacity
+  const { data: hospital } = await supabase
+    .from('hospitals')
+    .select('id, name')
+    .filter('current_capacity', 'lt', 'max_capacity')
+    .order('created_at', { ascending: true }) // Simulating proximity order
+    .limit(1)
+    .single();
+
+  const hospitalId = hospital ? hospital.id : null;
+  const hospitalName = hospital ? hospital.name : "Emergency Center";
+
+  // Insert PRIMARY incident
   const { data: incident, error } = await supabase
     .from('incidents')
     .insert([{
@@ -143,19 +203,36 @@ async function triggerEmergency(data, phone) {
       lng,
       status: 'Pending',
       reporter_phone: `USSD ${phone}`,
-      source: 'USSD'
+      source: 'USSD',
+      session_id: sessionId,
+      hospital_id: hospitalId
     }])
     .select()
     .single();
 
   if (error) throw error;
 
-  // Escalation logic: In a production app, we'd use pg_cron or Edge Tasks.
-  // For the demo, we'll log it.
+  // Update hospital capacity if assigned
+  if (hospitalId) {
+    await supabase.rpc('increment_hospital_capacity', { row_id: hospitalId });
+  }
+
   setupEscalationTimeout(incident.id);
 
-  return { incidentId: incident.id, nearestFacility: "Black Lion Hospital" };
+  return { incidentId: incident.id, nearestFacility: hospitalName };
 }
+
+// Update the call site in ussdHandler
+// Lines 100-104 in original:
+// if (lastInput === '1') {
+//   const result = await triggerEmergency(session.data, phoneNumber);
+//   response = `END Help is coming from ${result.nearestFacility}. Reference: #QR-${result.incidentId.slice(0,5)}`;
+//   clearSession(sessionId);
+// }
+
+// I'll replace the entire CONFIRM case in ussdHandler too if I can, or just wait.
+// Actually, I should update the call to include sessionId.
+
 
 function setupEscalationTimeout(incidentId) {
   // Simulated background check in 60s

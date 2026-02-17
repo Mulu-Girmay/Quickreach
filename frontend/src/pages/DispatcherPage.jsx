@@ -2,25 +2,31 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNotifications } from '../components/NotificationSystem';
 import { IncidentMap } from '../components/IncidentMap';
-import { AlertTriangle, Clock, MapPin, Phone, CheckCircle, Play, Bell, MessageCircle } from 'lucide-react';
+import { AlertTriangle, Clock, MapPin, Phone, CheckCircle, Play, Bell, MessageCircle, Languages } from 'lucide-react';
 import { EmergencyChat } from '../components/EmergencyChat';
+import { IVRSimulator } from '../components/IVRSimulator';
 import { cn } from '../lib/utils';
 
-const ALERT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+const ALERT_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3'; // Urgent Emergency Alarm
+const DISPATCH_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2536/2536-preview.mp3'; // Professional Dispatch "Chirp"
 
 export const DispatcherPage = () => {
   const [incidents, setIncidents] = useState([]);
+  const [hospitals, setHospitals] = useState([]);
+  const [volunteers, setVolunteers] = useState([]);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isIVROpen, setIsIVROpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showVolunteers, setShowVolunteers] = useState(true);
   const [ambulanceLocation, setAmbulanceLocation] = useState(null);
   const { addNotification } = useNotifications();
   const audioRef = useRef(new Audio(ALERT_SOUND_URL));
+  const dispatchAudioRef = useRef(new Audio(DISPATCH_SOUND_URL));
 
-  // Simulated Ambulance Movement
+  // ... (Ambulance movement remains same)
   useEffect(() => {
     if (selectedIncident?.status === 'Dispatched') {
-      // Start from a mock hospital (center of Addis)
       const hospitalCoord = [9.030, 38.740];
       const targetCoord = [selectedIncident.lat, selectedIncident.lng];
       let step = 0;
@@ -35,7 +41,7 @@ export const DispatcherPage = () => {
         const currentLat = hospitalCoord[0] + (targetCoord[0] - hospitalCoord[0]) * (step / totalSteps);
         const currentLng = hospitalCoord[1] + (targetCoord[1] - hospitalCoord[1]) * (step / totalSteps);
         setAmbulanceLocation([currentLat, currentLng]);
-      }, 100); // Fast simulation
+      }, 100);
 
       return () => clearInterval(interval);
     } else {
@@ -45,6 +51,8 @@ export const DispatcherPage = () => {
 
   useEffect(() => {
     fetchIncidents();
+    fetchHospitals();
+    fetchVolunteers();
 
     // Reset audio context if frozen
     const handleInteraction = () => {
@@ -53,37 +61,23 @@ export const DispatcherPage = () => {
     };
     window.addEventListener('click', handleInteraction);
 
-    console.log("📍 Initializing Real-time Subscription...");
-    const channelId = `incidents_${Math.random().toString(36).substr(2, 9)}`;
     const subscription = supabase
-      .channel(channelId)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'incidents' },
-        (payload) => {
-          console.log("🔥 NEW INCIDENT RECEIVED:", payload);
-          setIncidents(prev => [payload.new, ...prev]);
-          playAlert();
-          addNotification({
-            type: 'error',
-            title: 'NEW EMERGENCY',
-            message: `Priority ${payload.new.type} alert from ${payload.new.reporter_phone || 'Unknown'}`
-          });
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'incidents' },
-        (payload) => {
-          setIncidents(prev => prev.map(inc => inc.id === payload.new.id ? payload.new : inc));
-        }
-      )
-      .subscribe((status) => {
-        console.log(`📣 Subscription [${channelId}] Status:`, status);
-      });
+      .channel('dispatcher_sync')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incidents' }, (payload) => {
+        fetchIncidents();
+        playAlert();
+        addNotification({
+          type: 'error',
+          title: 'NEW EMERGENCY',
+          message: `Priority ${payload.new.type} alert from ${payload.new.reporter_phone || 'Unknown'}`
+        });
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'incidents' }, fetchIncidents)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'hospitals' }, fetchHospitals)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, fetchVolunteers)
+      .subscribe();
 
     return () => {
-      console.log("🧹 Cleaning up subscription...");
       supabase.removeChannel(subscription);
     };
   }, []);
@@ -91,16 +85,31 @@ export const DispatcherPage = () => {
   const fetchIncidents = async () => {
     const { data } = await supabase
       .from('incidents')
-      .select('*')
+      .select('*, parent_incident_id')
       .order('triage_score', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
     
     if (data) setIncidents(data);
   };
 
+  const fetchHospitals = async () => {
+    const { data } = await supabase.from('hospitals').select('*');
+    if (data) setHospitals(data);
+  };
+
+  const fetchVolunteers = async () => {
+    const { data } = await supabase.from('volunteers').select('*').eq('is_online', true);
+    if (data) setVolunteers(data);
+  };
+
   const playAlert = () => {
     audioRef.current.currentTime = 0;
     audioRef.current.play().catch(e => console.log("Audio play failed:", e));
+  };
+
+  const playDispatch = () => {
+    dispatchAudioRef.current.currentTime = 0;
+    dispatchAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
   };
 
   const updateStatus = async (id, status) => {
@@ -110,11 +119,15 @@ export const DispatcherPage = () => {
       .eq('id', id);
     
     if (!error) {
+      if (status === 'Dispatched') playDispatch();
+      
       if (selectedIncident?.id === id) {
         setSelectedIncident(prev => ({ ...prev, status }));
       }
+      fetchIncidents();
     }
   };
+
 
   return (
     <div className="flex h-screen bg-slate-950 overflow-hidden font-sans">
@@ -128,13 +141,45 @@ export const DispatcherPage = () => {
               </div>
               QUICKREACH <span className="text-red-600">HQ</span>
             </h1>
-            <div className="flex items-center gap-1.5 bg-red-600/10 border border-red-600/20 px-2 py-1 rounded-full">
-              <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-ping" />
-              <span className="text-red-500 text-[10px] font-black tracking-widest uppercase italic">Active</span>
-            </div>
+            <button 
+              onClick={() => setIsIVROpen(true)}
+              className="bg-slate-800 p-1.5 rounded-lg border border-white/5 hover:bg-slate-700 transition-colors group"
+              title="Launch IVR Simulator"
+            >
+              <Languages className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
+            </button>
           </div>
           <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Emergency Dispatch Control</p>
         </header>
+
+        {/* Hospital Resources Section */}
+        <section className="p-4 border-b border-slate-800 bg-slate-900/50">
+           <h4 className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3 ml-2">Hospital Resource Status</h4>
+           <div className="space-y-3">
+             {hospitals.map(h => (
+               <div key={h.id} className="bg-slate-800/50 p-3 rounded-2xl border border-white/5">
+                 <div className="flex justify-between items-center mb-2">
+                   <span className="text-xs font-bold text-slate-200">{h.name}</span>
+                   <span className={cn(
+                     "text-[10px] font-black",
+                     h.current_capacity >= h.max_capacity ? "text-red-500" : "text-slate-400"
+                   )}>
+                     {h.current_capacity}/{h.max_capacity}
+                   </span>
+                 </div>
+                 <div className="w-full h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                   <div 
+                     className={cn(
+                       "h-full transition-all duration-500",
+                       h.current_capacity >= h.max_capacity ? "bg-red-600" : "bg-blue-500"
+                     )}
+                     style={{ width: `${Math.min(100, (h.current_capacity / h.max_capacity) * 100)}%` }}
+                   />
+                 </div>
+               </div>
+             ))}
+           </div>
+        </section>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {incidents.length === 0 && (
@@ -199,10 +244,15 @@ export const DispatcherPage = () => {
               <div className="flex items-center justify-between">
                 <div className={cn(
                   "text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter",
-                  incident.status === 'Pending' ? "text-red-600 bg-red-600/10 animate-pulse" : "text-green-600 bg-green-600/10"
+                  incident.status === 'Pending' ? "text-red-600 bg-red-600/10 animate-pulse" : 
+                  incident.status === 'Collapsed' ? "text-slate-500 bg-slate-800 border border-slate-700" :
+                  "text-green-600 bg-green-600/10"
                 )}>
                   {incident.status}
                 </div>
+                {incident.parent_incident_id && (
+                  <span className="text-[10px] font-bold text-slate-500 italic">Linked to Active Group</span>
+                )}
                 <div className="flex gap-2">
                    {incident.status === 'Pending' && (
                      <button 
@@ -227,19 +277,33 @@ export const DispatcherPage = () => {
             ambulanceLocation={ambulanceLocation}
             allIncidents={incidents}
             showHeatmap={showHeatmap}
+            volunteers={volunteers}
+            showVolunteers={showVolunteers}
             nearestHospital={null}
           />
 
-          {/* Heatmap Toggle */}
-          <div className="absolute top-10 right-10 z-10">
+          {/* Map Layer Toggles */}
+          <div className="absolute top-10 right-10 z-10 flex flex-col gap-2 scale-90 origin-top-right">
             <button 
               onClick={() => setShowHeatmap(!showHeatmap)}
               className={cn(
-                "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md",
-                showHeatmap ? "bg-orange-500 text-white border-orange-400" : "bg-slate-900/80 text-slate-400 border-white/5"
+                "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md w-48 text-left flex justify-between items-center group",
+                showHeatmap ? "bg-orange-600 text-white border-orange-400" : "bg-slate-900/80 text-slate-400 border-white/5"
               )}
             >
-              Layer: {showHeatmap ? 'Heatmap ACTIVE' : 'Standard View'}
+              <span>Density Heatmap</span>
+              <div className={cn("w-1.5 h-1.5 rounded-full", showHeatmap ? "bg-white animate-pulse" : "bg-slate-700")} />
+            </button>
+
+            <button 
+              onClick={() => setShowVolunteers(!showVolunteers)}
+              className={cn(
+                "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md w-48 text-left flex justify-between items-center",
+                showVolunteers ? "bg-blue-600 text-white border-blue-400" : "bg-slate-900/80 text-slate-400 border-white/5"
+              )}
+            >
+              <span>Volunteer Network</span>
+              <div className={cn("w-1.5 h-1.5 rounded-full", showVolunteers ? "bg-white animate-pulse" : "bg-slate-700")} />
             </button>
           </div>
 
@@ -255,13 +319,29 @@ export const DispatcherPage = () => {
           
           {/* Top Info Bar */}
           {!selectedIncident && (
-            <div className="absolute top-10 left-10 z-10 animate-in fade-in slide-in-from-top duration-700">
-              <div className="bg-slate-900/80 backdrop-blur-xl border border-white/5 p-6 rounded-3xl shadow-2xl">
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.3em] mb-2">Satellite Status</p>
-                <div className="flex items-center gap-4 text-white">
-                  <div className="flex flex-col">
-                    <span className="text-3xl font-black italic tracking-tighter">STANDBY</span>
-                    <span className="text-[10px] opacity-40">Addis Ababa Orbital Sector 01-A</span>
+            <div className="absolute top-10 left-10 z-10 animate-in fade-in slide-in-from-left duration-700">
+              <div className="bg-slate-900/80 backdrop-blur-xl border border-white/5 p-6 rounded-[2.5rem] shadow-2xl min-w-[300px]">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mb-1">Fleet Telemetry</p>
+                    <div className="flex items-center gap-1.5">
+                       <span className="text-2xl font-black italic tracking-tighter text-white">READY</span>
+                       <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mb-1">Signal Mode</p>
+                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">Satellite Mesh</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-[10px] font-bold">
+                    <span className="text-slate-500 uppercase tracking-widest">Network Load</span>
+                    <span className="text-white">12%</span>
+                  </div>
+                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-600 w-[12%]" />
                   </div>
                 </div>
               </div>
@@ -334,6 +414,10 @@ export const DispatcherPage = () => {
           </div>
         )}
       </main>
+      <IVRSimulator 
+        isOpen={isIVROpen} 
+        onClose={() => setIsIVROpen(false)} 
+      />
     </div>
   );
 };

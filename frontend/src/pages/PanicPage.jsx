@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertCircle, MapPin, Navigation, Phone, Shield, Languages, CheckCircle, MessageSquare, Video, ShieldAlert, Heart, X } from 'lucide-react';
 import { ETHIOPIAN_HOSPITALS } from '../data/hospitals';
 import { getDistance, cn } from '../lib/utils';
@@ -8,6 +9,9 @@ import { FirstAidGuide } from '../components/FirstAidGuide';
 import { supabase } from '../lib/supabase';
 import { TRANSLATIONS } from '../data/translations';
 import { useNotifications } from '../components/NotificationSystem';
+
+const PANIC_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2550/2550-preview.mp3'; // Urgent Beep Pulse
+const DISPATCH_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2536/2536-preview.mp3'; // Smooth Dispatch Chirp
 
 const SuccessContent = ({ status, t, lang, nearestHospital, incidentId, onReset }) => {
   const [rating, setRating] = useState(0);
@@ -108,6 +112,19 @@ export const PanicPage = () => {
   const [isFirstAidOpen, setIsFirstAidOpen] = useState(false);
   const [isVideoSOSOpen, setIsVideoSOSOpen] = useState(false);
   const { addNotification } = useNotifications();
+  const panicAudioRef = useRef(new Audio(PANIC_SOUND_URL));
+  const dispatchAudioRef = useRef(new Audio(DISPATCH_SOUND_URL));
+
+  // Preload audio on first interaction
+  useEffect(() => {
+    const unlock = () => {
+      panicAudioRef.current.load();
+      dispatchAudioRef.current.load();
+      window.removeEventListener('click', unlock);
+    };
+    window.addEventListener('click', unlock);
+    return () => window.removeEventListener('click', unlock);
+  }, []);
 
   const t = TRANSLATIONS[lang];
 
@@ -174,6 +191,9 @@ export const PanicPage = () => {
           if (sbError) throw sbError;
           if (data) {
             setIncidentId(data[0].id);
+            panicAudioRef.current.currentTime = 0;
+            panicAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
+
             // Start listening for status updates for THIS specific incident
             supabase
               .channel(`incident_${data[0].id}`)
@@ -189,6 +209,8 @@ export const PanicPage = () => {
                   console.log("🔄 [PanicPage] Status Update Received:", payload.new.status);
                   if (payload.new.status === 'Dispatched') {
                     setStatus('Dispatched');
+                    dispatchAudioRef.current.currentTime = 0;
+                    dispatchAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
                     addNotification({
                       type: 'success',
                       title: 'HELP DISPATCHED',
@@ -413,6 +435,11 @@ export const PanicPage = () => {
           Notify Family & Friends (SOS)
         </button>
         <p>&copy; 2026 QuickReach Ethiopia</p>
+        <div className="mt-4 flex justify-center gap-4">
+          <Link to="/volunteer" className="text-blue-600 hover:underline">Community Volunteer Mode</Link>
+          <span className="text-slate-300">|</span>
+          <Link to="/first-aid" className="text-slate-500 hover:underline">Offline First Aid Guide</Link>
+        </div>
       </footer>
     </div>
   );
