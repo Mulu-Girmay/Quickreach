@@ -47,11 +47,26 @@ export const IncidentMap = ({
   className = ''
 }) => {
   const defaultCenter = [9.0197, 38.7469]; // Addis Ababa
+  const isValidCoord = (lat, lng) => Number.isFinite(Number(lat)) && Number.isFinite(Number(lng));
+  const safeUserLocation =
+    Array.isArray(userLocation) && isValidCoord(userLocation[0], userLocation[1])
+      ? [Number(userLocation[0]), Number(userLocation[1])]
+      : null;
+  const safeAmbulanceLocation =
+    Array.isArray(ambulanceLocation) && isValidCoord(ambulanceLocation[0], ambulanceLocation[1])
+      ? [Number(ambulanceLocation[0]), Number(ambulanceLocation[1])]
+      : null;
+  const safeNearestHospital =
+    nearestHospital && isValidCoord(nearestHospital.lat, nearestHospital.lng)
+      ? { ...nearestHospital, lat: Number(nearestHospital.lat), lng: Number(nearestHospital.lng) }
+      : null;
+  const safeIncidents = (allIncidents || []).filter((inc) => isValidCoord(inc?.lat, inc?.lng));
+  const safeVolunteers = (volunteers || []).filter((v) => isValidCoord(v?.lat, v?.lng));
   
   return (
     <div className={`relative z-0 w-full overflow-hidden ${className || 'h-[280px] sm:h-[360px] rounded-xl shadow-lg border-2 border-slate-200'}`}>
       <MapContainer
-        center={userLocation || defaultCenter}
+        center={safeUserLocation || defaultCenter}
         zoom={13}
         scrollWheelZoom={false}
         className="h-full w-full z-0"
@@ -62,10 +77,10 @@ export const IncidentMap = ({
         />
         
         {/* Heatmap Simulation Layer */}
-        {showHeatmap && allIncidents && allIncidents.map(inc => (
+        {showHeatmap && safeIncidents.map(inc => (
           <Circle 
             key={`heat-${inc.id}`}
-            center={[inc.lat, inc.lng]}
+            center={[Number(inc.lat), Number(inc.lng)]}
             radius={200}
             pathOptions={{ 
               fillColor: inc.type === 'Fire' ? 'orange' : 'red', 
@@ -75,28 +90,28 @@ export const IncidentMap = ({
           />
         ))}
         
-        {userLocation && (
+        {safeUserLocation && (
           <>
-            <Marker position={userLocation}>
+            <Marker position={safeUserLocation}>
               <Popup>Your Location</Popup>
             </Marker>
-            <ChangeView center={userLocation} />
+            <ChangeView center={safeUserLocation} />
           </>
         )}
         
-        {nearestHospital && (
+        {safeNearestHospital && (
           <Marker 
-            position={[nearestHospital.lat, nearestHospital.lng]}
+            position={[safeNearestHospital.lat, safeNearestHospital.lng]}
           >
             <Popup>
-              <div className="font-bold">{nearestHospital.name}</div>
+              <div className="font-bold">{safeNearestHospital.name}</div>
               <div className="text-xs">Nearest Hospital</div>
             </Popup>
           </Marker>
         )}
 
-        {ambulanceLocation && (
-          <Marker position={ambulanceLocation} icon={AmbulanceIcon}>
+        {safeAmbulanceLocation && (
+          <Marker position={safeAmbulanceLocation} icon={AmbulanceIcon}>
             <Popup>
               <div className="font-bold text-red-600">Ambulance #QD-01</div>
               <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Live Tracking Active</div>
@@ -105,10 +120,10 @@ export const IncidentMap = ({
           </Marker>
         )}
 
-        {showVolunteers && volunteers && volunteers.map(v => (
+        {showVolunteers && safeVolunteers.map(v => (
           <Marker 
             key={`vol-${v.id}`} 
-            position={[v.lat, v.lng]} 
+            position={[Number(v.lat), Number(v.lng)]} 
             icon={VolunteerIcon}
           >
             <Popup>
