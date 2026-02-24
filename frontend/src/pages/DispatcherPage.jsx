@@ -381,6 +381,14 @@ export const DispatcherPage = () => {
       {/* Sidebar - Incident List */}
       <aside className="w-full lg:w-[420px] lg:min-w-[420px] max-h-[52vh] lg:max-h-none bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-20">
         <header className="p-3 sm:p-5 lg:p-8 border-b border-slate-800 bg-slate-900">
+          <div className="mb-3">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white bg-slate-800 border border-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Home
+            </Link>
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <h1 className="text-lg sm:text-xl lg:text-2xl font-black text-white flex items-center gap-2 tracking-tighter">
               <div className="bg-red-600 p-1.5 rounded-lg shadow-lg shadow-red-900/20">

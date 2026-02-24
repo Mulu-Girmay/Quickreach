@@ -8,6 +8,7 @@ import { IncidentDetails } from '../components/IncidentDetails';
 import { supabase } from '../lib/supabase';
 import { apiFetch } from '../lib/api';
 import { cn } from '../lib/utils';
+import { Link } from 'react-router-dom';
 
 export const VolunteerMode = () => {
   const [isOnline, setIsOnline] = useState(false);
@@ -310,6 +311,14 @@ export const VolunteerMode = () => {
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <div className="w-full sm:w-auto">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-300 hover:text-white bg-slate-800 border border-white/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Home
+            </Link>
+          </div>
           <div className="flex w-full sm:w-auto flex-wrap items-center justify-end gap-2 sm:gap-3">
             <div className="bg-blue-600 p-3 rounded-2xl shadow-lg">
               <Shield className="w-8 h-8 text-white" />
