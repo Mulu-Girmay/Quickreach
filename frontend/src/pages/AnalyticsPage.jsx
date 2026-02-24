@@ -27,9 +27,9 @@ export function AnalyticsPage() {
   const accountability = data?.operator_accountability || {};
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
+    <div className="min-h-screen bg-slate-950 text-white p-4 sm:p-8">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-3xl font-black mb-2 flex items-center gap-2">
+        <h1 className="text-2xl sm:text-3xl font-black mb-2 flex items-center gap-2">
           <BarChart3 className="w-7 h-7 text-blue-500" />
           Response Analytics
         </h1>

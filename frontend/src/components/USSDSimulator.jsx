@@ -92,19 +92,19 @@ export const USSDSimulator = () => {
   };
 
   return (
-    <div className="fixed bottom-6 left-6 z-50">
+    <div className="fixed bottom-3 left-3 sm:bottom-6 sm:left-6 z-50">
       {!isOpen ? (
         <button 
           onClick={() => setIsOpen(true)}
-          className="bg-slate-900 text-white p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 group"
+          className="bg-slate-900 text-white p-3 sm:p-4 rounded-full shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 group"
         >
-          <Phone className="w-6 h-6" />
-          <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 whitespace-nowrap font-bold">
+          <Phone className="w-5 h-5 sm:w-6 sm:h-6" />
+          <span className="hidden sm:block max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 whitespace-nowrap font-bold">
             USSD Simulator
           </span>
         </button>
       ) : (
-        <div className="bg-slate-800 w-72 rounded-[32px] p-4 border-8 border-slate-700 shadow-2xl animate-in zoom-in duration-300">
+        <div className="bg-slate-800 w-[calc(100vw-1.5rem)] max-w-72 rounded-[32px] p-4 border-8 border-slate-700 shadow-2xl animate-in zoom-in duration-300">
           <div className="flex justify-between items-center mb-4 px-2">
             <div className="text-slate-400 text-[10px] font-bold tracking-widest uppercase">QuickPhone Pro</div>
             <button onClick={() => setIsOpen(false)} className="text-slate-500 hover:text-white">

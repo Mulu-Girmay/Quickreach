@@ -8,7 +8,7 @@ export const VideoSOSModal = ({ onClose, roomName, displayName = 'QuickReach Use
   const src = `https://meet.jit.si/${jitsiRoom}#userInfo.displayName=%22${jitsiName}%22&config.prejoinPageEnabled=true&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+    <div className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300 isolate">
       <div className="relative w-full h-full">
         <div className="absolute inset-x-0 top-0 p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center z-10">
           <div>

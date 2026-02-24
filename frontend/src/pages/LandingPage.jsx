@@ -120,7 +120,7 @@ export const LandingPage = () => {
           <div className="absolute bottom-10 right-10 w-64 h-64 bg-blue-500 rounded-full blur-[100px]" />
         </div>
 
-        <nav className="relative z-10 flex items-center justify-between max-w-7xl mx-auto mb-10 md:mb-16">
+        <nav className="relative z-10 flex items-center justify-between max-w-7xl mx-auto mb-6 md:mb-16">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shadow-lg shadow-red-900/50">
               <Siren className="text-white w-6 h-6 animate-pulse" />
@@ -154,6 +154,32 @@ export const LandingPage = () => {
             </button>
           </div>
         </nav>
+        <div className="relative z-10 md:hidden max-w-7xl mx-auto mb-8">
+          <div className="inline-flex w-full rounded-xl border border-white/10 bg-slate-800/70 p-1">
+            <button
+              onClick={() => setActiveTab("roles")}
+              className={cn(
+                "flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors",
+                activeTab === "roles"
+                  ? "bg-red-600 text-white"
+                  : "text-slate-300 hover:text-white",
+              )}
+            >
+              Roles
+            </button>
+            <button
+              onClick={() => setActiveTab("about")}
+              className={cn(
+                "flex-1 rounded-lg px-3 py-2 text-xs font-bold uppercase tracking-widest transition-colors",
+                activeTab === "about"
+                  ? "bg-blue-600 text-white"
+                  : "text-slate-300 hover:text-white",
+              )}
+            >
+              About
+            </button>
+          </div>
+        </div>
 
         {activeTab === "roles" && (
           <div className="relative z-10 max-w-4xl mx-auto text-center space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -162,14 +188,14 @@ export const LandingPage = () => {
               Live Emergency Response System
             </div>
 
-            <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">
+            <h1 className="text-4xl sm:text-5xl md:text-7xl font-black tracking-tight leading-tight">
               Emergency Response <br className="hidden md:block" />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-400">
                 Reimagined.
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
               The fastest way to connect citizens in distress with professional
               dispatchers and volunteers. Seconds save lives.
             </p>
@@ -177,7 +203,7 @@ export const LandingPage = () => {
             <div className="pt-8">
               <Link
                 to="/panic"
-                className="group relative inline-flex items-center justify-center gap-3 px-8 py-5 bg-red-600 text-white rounded-full text-lg font-black uppercase tracking-widest shadow-xl shadow-red-900/40 hover:scale-105 transition-transform overflow-hidden"
+                className="group relative inline-flex items-center justify-center gap-3 px-5 py-4 sm:px-8 sm:py-5 bg-red-600 text-white rounded-full text-sm sm:text-lg font-black uppercase tracking-widest shadow-xl shadow-red-900/40 hover:scale-105 transition-transform overflow-hidden"
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full duration-1000 transition-transform" />
                 <ShieldAlert className="w-6 h-6 animate-pulse" />
@@ -239,9 +265,9 @@ export const LandingPage = () => {
           </div>
 
           {/* Stats / Trust Section */}
-          <div className="max-w-5xl mx-auto mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 border-t border-slate-200 pt-12">
+          <div className="max-w-5xl mx-auto mt-20 grid grid-cols-2 md:grid-cols-4 gap-5 sm:gap-8 border-t border-slate-200 pt-12">
             <div className="text-center">
-              <div className="text-4xl font-black text-slate-900 mb-1">
+              <div className="text-3xl sm:text-4xl font-black text-slate-900 mb-1">
                 {stats.avgResponseSec}s
               </div>
               <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
@@ -249,7 +275,7 @@ export const LandingPage = () => {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-black text-slate-900 mb-1">
+              <div className="text-3xl sm:text-4xl font-black text-slate-900 mb-1">
                 {stats.hospitals > 0 ? stats.hospitals : "—"}
               </div>
               <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
@@ -257,7 +283,7 @@ export const LandingPage = () => {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-black text-slate-900 mb-1">
+              <div className="text-3xl sm:text-4xl font-black text-slate-900 mb-1">
                 {stats.volunteers > 0 ? stats.volunteers : "—"}
               </div>
               <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
@@ -265,7 +291,7 @@ export const LandingPage = () => {
               </div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-black text-slate-900 mb-1">
+              <div className="text-3xl sm:text-4xl font-black text-slate-900 mb-1">
                 {stats.incidents > 0 ? stats.incidents : "—"}
               </div>
               <div className="text-xs font-bold uppercase text-slate-400 tracking-wider">
@@ -290,7 +316,7 @@ export const LandingPage = () => {
             </div>
 
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-              <div className="md:w-1/2">
+              <div className="w-full lg:w-1/2">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest mb-6">
                   <Activity className="w-4 h-4 text-blue-500" />
                   Our Mission
@@ -327,7 +353,7 @@ export const LandingPage = () => {
                 </div>
               </div>
 
-              <div className="md:w-1/2 grid grid-cols-2 gap-4">
+              <div className="w-full lg:w-1/2 grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 transform translate-y-8">
                   <Siren className="w-10 h-10 text-red-500 mb-4" />
                   <h4 className="text-lg font-bold mb-2">Rapid Dispatch</h4>

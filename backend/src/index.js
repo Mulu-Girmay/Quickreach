@@ -41,6 +41,49 @@ app.post('/api/incidents/public', async (req, res) => {
   }
 });
 
+app.patch('/api/incidents/:id/location', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lat, lng } = req.body;
+    const incidentToken = req.headers['x-incident-token'];
+
+    if (incidentToken !== id) {
+      return res.status(401).json({ error: "Invalid incident token" });
+    }
+
+    if (typeof lat !== 'number' || typeof lng !== 'number') {
+      return res.status(400).json({ error: "lat and lng must be numbers" });
+    }
+
+    const { data: incident, error: findError } = await supabase
+      .from('incidents')
+      .select('id, status')
+      .eq('id', id)
+      .single();
+
+    if (findError || !incident) {
+      return res.status(404).json({ error: "Incident not found" });
+    }
+
+    if (incident.status === 'Resolved') {
+      return res.status(409).json({ error: "Incident already resolved" });
+    }
+
+    const { data, error } = await supabase
+      .from('incidents')
+      .update({ lat, lng })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ incident: data });
+  } catch (err) {
+    console.error("Update incident location error:", err);
+    res.status(500).json({ error: "Failed to update location" });
+  }
+});
+
 app.get('/api/incidents', async (req, res) => {
   try {
     const { data, error } = await supabase

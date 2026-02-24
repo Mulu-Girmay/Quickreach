@@ -27,7 +27,7 @@ export function LoginPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
-      <Link to="/" className="fixed top-6 left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors z-10">
+      <Link to="/" className="fixed top-3 left-3 sm:top-6 sm:left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors z-10">
         <ArrowLeft className="w-5 h-5" />
         <span className="font-bold">Back to Home</span>
       </Link>
@@ -101,7 +101,7 @@ export function SignupPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
-      <Link to="/login" className="fixed top-6 left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors z-10">
+      <Link to="/login" className="fixed top-3 left-3 sm:top-6 sm:left-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors z-10">
         <ArrowLeft className="w-5 h-5" />
         <span className="font-bold">Back to Login</span>
       </Link>

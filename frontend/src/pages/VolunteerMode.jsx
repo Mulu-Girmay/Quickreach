@@ -23,7 +23,6 @@ export const VolunteerMode = () => {
   });
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [unrespondedIncidents, setUnrespondedIncidents] = useState([]);
   const [incidentTimers, setIncidentTimers] = useState({});
   const [unrespondedHistory, setUnrespondedHistory] = useState(() => {
     const saved = localStorage.getItem('volunteer_unresponded_history');
@@ -32,6 +31,25 @@ export const VolunteerMode = () => {
   const [showUnrespondedHistory, setShowUnrespondedHistory] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [selectedIncidentDetails, setSelectedIncidentDetails] = useState(null);
+
+  const mergeUnrespondedHistory = (prev, incoming) => {
+    const seen = new Set();
+    return [...incoming, ...prev].filter((item) => {
+      if (!item?.id || seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+  };
+
+  const clearIncidentTimer = (incidentId) => {
+    setIncidentTimers((prev) => {
+      if (!prev[incidentId]) return prev;
+      clearTimeout(prev[incidentId]);
+      const next = { ...prev };
+      delete next[incidentId];
+      return next;
+    });
+  };
 
   // Persist histories to localStorage
   useEffect(() => {
@@ -77,11 +95,7 @@ export const VolunteerMode = () => {
       
       // Add old incidents to unresponded history
       if (oldIncidents.length > 0) {
-        setUnrespondedHistory(prev => {
-          const existingIds = prev.map(h => h.id);
-          const newOld = oldIncidents.filter(inc => !existingIds.includes(inc.id));
-          return [...newOld, ...prev];
-        });
+        setUnrespondedHistory(prev => mergeUnrespondedHistory(prev, oldIncidents));
       }
       
       if (location) {
@@ -96,7 +110,7 @@ export const VolunteerMode = () => {
         
         // Start timers for new incidents
         withDist.forEach(inc => {
-          if (!incidentTimers[inc.id] && !acceptedIncidentIds.includes(inc.id)) {
+          if (!acceptedIncidentIds.includes(inc.id)) {
             startIncidentTimer(inc);
           }
         });
@@ -109,19 +123,23 @@ export const VolunteerMode = () => {
   };
 
   const startIncidentTimer = (incident) => {
-    const timerId = setTimeout(() => {
-      // Move directly to history after 2 minutes
-      const expiredIncident = { ...incident, expiredAt: new Date().toISOString() };
-      setUnrespondedHistory(prev => [expiredIncident, ...prev]);
-      setNearbyIncidents(prev => prev.filter(i => i.id !== incident.id));
-      setIncidentTimers(prev => {
-        const updated = { ...prev };
-        delete updated[incident.id];
-        return updated;
-      });
-    }, 120000); // 2 minutes
-    
-    setIncidentTimers(prev => ({ ...prev, [incident.id]: timerId }));
+    setIncidentTimers(prev => {
+      if (prev[incident.id]) return prev;
+
+      const timerId = setTimeout(() => {
+        // Move directly to history after 2 minutes
+        const expiredIncident = { ...incident, expiredAt: new Date().toISOString() };
+        setUnrespondedHistory(current => mergeUnrespondedHistory(current, [expiredIncident]));
+        setNearbyIncidents(current => current.filter(i => i.id !== incident.id));
+        setIncidentTimers(current => {
+          const updated = { ...current };
+          delete updated[incident.id];
+          return updated;
+        });
+      }, 120000); // 2 minutes
+
+      return { ...prev, [incident.id]: timerId };
+    });
   };
 
   const handleAcceptIncident = async (incident) => {
@@ -130,14 +148,7 @@ export const VolunteerMode = () => {
       setAcceptedIncidentIds((prev) => (prev.includes(incident.id) ? prev : [...prev, incident.id]));
       setSelectedIncident(incident);
       // Clear timer
-      if (incidentTimers[incident.id]) {
-        clearTimeout(incidentTimers[incident.id]);
-        setIncidentTimers(prev => {
-          const updated = { ...prev };
-          delete updated[incident.id];
-          return updated;
-        });
-      }
+      clearIncidentTimer(incident.id);
       // Add to history
       setResponseHistory(prev => [{
         id: incident.id,
@@ -225,10 +236,18 @@ export const VolunteerMode = () => {
     if (isOnline) {
       const channel = supabase
         .channel('volunteer-alerts')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incidents' }, payload => {
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'incidents' }, () => {
           fetchNearbyIncidents();
         })
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'incidents' }, payload => {
+          if (selectedIncident?.id === payload.new.id) {
+            setSelectedIncident(prev => prev ? { ...prev, ...payload.new } : prev);
+          }
+
+          if (selectedIncidentDetails?.id === payload.new.id) {
+            setSelectedIncidentDetails(prev => prev ? { ...prev, ...payload.new } : prev);
+          }
+
           // Check if accepted incident was resolved
           if (payload.new.status === 'Resolved' && acceptedIncidentIds.includes(payload.new.id)) {
             setResolvedNotifications(prev => [...prev, {
@@ -247,13 +266,8 @@ export const VolunteerMode = () => {
           }
           
           // If incident status changed from Pending, clear its timer and remove from unresponded tracking
-          if (payload.new.status !== 'Pending' && incidentTimers[payload.new.id]) {
-            clearTimeout(incidentTimers[payload.new.id]);
-            setIncidentTimers(prev => {
-              const updated = { ...prev };
-              delete updated[payload.new.id];
-              return updated;
-            });
+          if (payload.new.status !== 'Pending') {
+            clearIncidentTimer(payload.new.id);
           }
           
           fetchNearbyIncidents();
@@ -264,12 +278,12 @@ export const VolunteerMode = () => {
         supabase.removeChannel(channel);
       };
     }
-  }, [isOnline, acceptedIncidentIds, selectedIncident, incidentTimers]);
+  }, [isOnline, acceptedIncidentIds, selectedIncident, selectedIncidentDetails, incidentTimers]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white font-sans">
       {/* Resolved Notifications */}
-      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+      <div className="fixed top-4 right-3 sm:right-4 z-50 space-y-2 max-w-[calc(100vw-1.5rem)] sm:max-w-sm">
         {resolvedNotifications.map((notif) => (
           <div
             key={notif.id}
@@ -296,7 +310,7 @@ export const VolunteerMode = () => {
 
       <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <div className="flex items-center gap-3">
+          <div className="flex w-full sm:w-auto flex-wrap items-center justify-end gap-2 sm:gap-3">
             <div className="bg-blue-600 p-3 rounded-2xl shadow-lg">
               <Shield className="w-8 h-8 text-white" />
             </div>
@@ -319,7 +333,7 @@ export const VolunteerMode = () => {
               <Settings className="w-5 h-5 text-slate-400" />
             </button>
             {/* Response Stats */}
-            <div className="bg-slate-800/50 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/10">
+            <div className="bg-slate-800/50 backdrop-blur-sm px-3 py-2 rounded-xl border border-white/10">
               <div className="flex items-center gap-2">
                 <TrendingUp className="w-4 h-4 text-green-400" />
                 <span className="text-sm font-bold text-white">{responseHistory.length}</span>
@@ -327,9 +341,9 @@ export const VolunteerMode = () => {
               </div>
             </div>
             {/* Online Toggle */}
-            <div className="flex items-center gap-3 bg-slate-800/50 backdrop-blur-sm p-2 rounded-2xl border border-white/10">
+            <div className="flex items-center gap-2 bg-slate-800/50 backdrop-blur-sm p-2 rounded-2xl border border-white/10">
               <span className={cn(
-                "text-xs font-bold px-4 py-2 rounded-xl transition-all",
+                "text-[10px] sm:text-xs font-bold px-3 sm:px-4 py-2 rounded-xl transition-all",
                 isOnline ? 'bg-green-500 text-white' : 'bg-slate-700 text-slate-300'
               )}>
                 {isOnline ? '● ONLINE' : '○ OFFLINE'}
@@ -380,7 +394,7 @@ export const VolunteerMode = () => {
                   {/* Action Buttons */}
                   <div className="bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-2xl p-4">
                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Quick Actions</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <button
                         onClick={() => openNavigation(selectedIncident.lat, selectedIncident.lng)}
                         className="group relative overflow-hidden bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-blue-500/50 hover:scale-105"
@@ -481,9 +495,9 @@ export const VolunteerMode = () => {
                             <h3 className="text-2xl font-black mb-1">{incident.type} Emergency</h3>
                             <p className="text-sm text-slate-400">{new Date(incident.created_at).toLocaleString()}</p>
                           </div>
-                          <div className="flex items-center gap-2 text-slate-300">
+                          <div className="flex items-center gap-2 text-slate-300 self-start sm:self-center">
                             <MapPin className="w-5 h-5 text-red-500" />
-                            <span className="text-xl font-bold">
+                            <span className="text-lg sm:text-xl font-bold">
                               {incident.distance ? `${incident.distance.toFixed(1)} km` : '...'}
                             </span>
                           </div>
@@ -531,7 +545,7 @@ export const VolunteerMode = () => {
                       {unrespondedHistory.map((incident, idx) => (
                         <div
                           key={`unresponded-${incident.id}-${idx}`}
-                          className="bg-slate-800/30 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between"
+                          className="bg-slate-800/30 border border-orange-500/20 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                         >
                           <div className="flex items-center gap-3">
                             <AlertTriangle className="w-5 h-5 text-orange-500" />
@@ -576,7 +590,7 @@ export const VolunteerMode = () => {
                       {responseHistory.map((response, idx) => (
                         <div
                           key={`${response.id}-${idx}`}
-                          className="bg-slate-800/50 border border-white/10 rounded-2xl p-4 flex items-center justify-between"
+                          className="bg-slate-800/50 border border-white/10 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
                         >
                           <div className="flex items-center gap-3">
                             {response.status === 'Resolved' ? (

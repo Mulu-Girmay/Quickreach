@@ -30,7 +30,7 @@ export const DispatcherLoginPage = () => {
          if (data.session) navigate('/dispatcher');
       } else {
          // Login Flow
-         const { data, error } = await supabase.auth.signInWithPassword({
+         const { error } = await supabase.auth.signInWithPassword({
             email,
             password
          });

@@ -46,7 +46,7 @@ export const EmergencySOS = ({ volunteerId, onSOSTriggered }) => {
     <>
       <button
         onClick={() => setIsConfirming(true)}
-        className="fixed bottom-6 right-6 z-40 bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white p-4 rounded-full shadow-2xl hover:shadow-red-500/50 transition-all hover:scale-110 animate-pulse"
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 bg-gradient-to-br from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white p-4 rounded-full shadow-2xl hover:shadow-red-500/50 transition-all hover:scale-110 animate-pulse"
         title="Emergency SOS - Trigger if you need help"
       >
         <AlertTriangle className="w-8 h-8" />

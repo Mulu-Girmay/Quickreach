@@ -34,7 +34,7 @@ export const NotificationProvider = ({ children }) => {
       {children}
       
       {isAudioBlocked && (
-        <div className="fixed top-24 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-500">
+        <div className="fixed top-24 right-3 sm:right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-500 max-w-[calc(100vw-1.5rem)]">
           <button 
             onClick={() => { playSound(); setIsAudioBlocked(false); }}
             className="bg-red-600 text-white px-4 py-2 rounded-xl shadow-lg shadow-red-900/40 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-red-700 transition-all border border-red-500/30"
@@ -45,7 +45,7 @@ export const NotificationProvider = ({ children }) => {
         </div>
       )}
 
-      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 w-80">
+      <div className="fixed top-6 right-3 sm:right-6 z-[9999] flex flex-col gap-3 w-[calc(100vw-1.5rem)] sm:w-80 max-w-sm">
         {notifications.map((n) => (
           <div 
             key={n.id}

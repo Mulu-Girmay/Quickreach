@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Share2, X, UserPlus, Send, Check } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 export const ShareLocation = ({ location, incidentId, isOpen, onClose }) => {
   const [contacts, setContacts] = useState(() => {
@@ -38,7 +37,7 @@ export const ShareLocation = ({ location, incidentId, isOpen, onClose }) => {
           text: message
         });
         setSentTo([...sentTo, contact.id]);
-      } catch (err) {
+      } catch {
         console.log('Share cancelled');
       }
     } else {

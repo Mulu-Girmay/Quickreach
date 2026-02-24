@@ -49,12 +49,12 @@ export const IncidentMap = ({
   const defaultCenter = [9.0197, 38.7469]; // Addis Ababa
   
   return (
-    <div className={`w-full overflow-hidden ${className || 'h-[280px] sm:h-[360px] rounded-xl shadow-lg border-2 border-slate-200'}`}>
+    <div className={`relative z-0 w-full overflow-hidden ${className || 'h-[280px] sm:h-[360px] rounded-xl shadow-lg border-2 border-slate-200'}`}>
       <MapContainer
         center={userLocation || defaultCenter}
         zoom={13}
         scrollWheelZoom={false}
-        className="h-full w-full"
+        className="h-full w-full z-0"
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

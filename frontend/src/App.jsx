@@ -35,7 +35,7 @@ function App() {
       <AuthProvider>
         <NotificationProvider>
           <Router>
-            <div className="relative isolate font-sans">
+            <div className="relative isolate overflow-x-hidden font-sans">
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/panic" element={<PanicPage />} />

@@ -57,7 +57,7 @@ export const IncidentDetails = ({ incident, isOpen, onClose, onNavigate, onAccep
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-slate-400 text-sm">Coordinates:</span>
-                <span className="text-white font-mono text-sm">
+                <span className="text-white font-mono text-sm break-all text-right">
                   {incident.lat.toFixed(6)}, {incident.lng.toFixed(6)}
                 </span>
               </div>

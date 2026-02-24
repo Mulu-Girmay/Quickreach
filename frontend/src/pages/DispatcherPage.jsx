@@ -37,11 +37,9 @@ export const DispatcherPage = () => {
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
   const [isIVROpen, setIsIVROpen] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [showVolunteers, setShowVolunteers] = useState(true);
+  const showVolunteers = true;
   const [ambulanceLocation, setAmbulanceLocation] = useState(null);
   const [hasUnitArrived, setHasUnitArrived] = useState(false);
-  const [recommendation, setRecommendation] = useState(null);
-  const [timeline, setTimeline] = useState([]);
   const { addNotification } = useNotifications();
   const [isSoundEnabled, setIsSoundEnabled] = useState(false);
   const [hasUnacknowledgedSOS, setHasUnacknowledgedSOS] = useState(false);
@@ -174,35 +172,6 @@ export const DispatcherPage = () => {
       setHasUnitArrived(false);
     }
   }, [selectedIncident?.id, selectedIncident?.status]);
-
-  useEffect(() => {
-    const loadAssist = async () => {
-      if (!selectedIncident?.id) {
-        setRecommendation(null);
-        setTimeline([]);
-        return;
-      }
-      try {
-        const rec = await apiFetch(
-          `/api/incidents/${selectedIncident.id}/recommendation`,
-        );
-        setRecommendation(rec.recommendation || null);
-      } catch (error) {
-        console.error("Decision assist load failed:", error.message);
-      }
-
-      try {
-        const tl = await apiFetch(
-          `/api/incidents/${selectedIncident.id}/timeline`,
-        );
-        setTimeline(tl.timeline || []);
-      } catch (error) {
-        console.error("Timeline load failed:", error.message);
-        setTimeline([]);
-      }
-    };
-    loadAssist();
-  }, [selectedIncident?.id]);
 
   useEffect(() => {
     fetchIncidents();
@@ -408,11 +377,11 @@ export const DispatcherPage = () => {
     .slice(0, 5);
 
   return (
-    <div className="emergency-shell flex min-h-screen lg:h-screen flex-col lg:flex-row bg-slate-950 overflow-hidden font-sans">
+    <div className="emergency-shell flex min-h-screen lg:h-screen flex-col lg:flex-row bg-slate-950 overflow-x-hidden lg:overflow-hidden font-sans">
       {/* Sidebar - Incident List */}
       <aside className="w-full lg:w-[420px] lg:min-w-[420px] max-h-[52vh] lg:max-h-none bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-20">
         <header className="p-3 sm:p-5 lg:p-8 border-b border-slate-800 bg-slate-900">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <h1 className="text-lg sm:text-xl lg:text-2xl font-black text-white flex items-center gap-2 tracking-tighter">
               <div className="bg-red-600 p-1.5 rounded-lg shadow-lg shadow-red-900/20">
                 <Bell className="text-white w-5 h-5 fill-white" />
@@ -428,7 +397,7 @@ export const DispatcherPage = () => {
             </button>
 
             {/* Sound toggle — glows red + pulses when an SOS arrived while muted */}
-            <div className="relative ml-2">
+            <div className="relative ml-auto sm:ml-2">
               {hasUnacknowledgedSOS && (
                 <span className="absolute -inset-1.5 rounded-xl bg-red-500 animate-ping opacity-60 pointer-events-none" />
               )}
@@ -575,9 +544,10 @@ export const DispatcherPage = () => {
                     >
                       {incident.status}
                     </div>
-                    <div className="flex gap-2">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-300 flex items-center gap-1 bg-slate-800/90 border border-cyan-400/30 px-2 py-1 rounded-lg">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-300 flex items-center gap-1 bg-slate-800/90 border border-cyan-400/30 px-2 py-1 rounded-lg max-w-full">
                         <MapPin className="w-3 h-3 text-cyan-300" />
+                        <span className="truncate">
                         {Number.isFinite(Number(incident.lat)) &&
                         Number.isFinite(Number(incident.lng))
                           ? getTrackedLocationName(
@@ -586,6 +556,7 @@ export const DispatcherPage = () => {
                             ) ||
                             `${Number(incident.lat).toFixed(4)}, ${Number(incident.lng).toFixed(4)}`
                           : "Location N/A"}
+                        </span>
                       </div>
                       {incident.status === "Pending" && (
                         <button
@@ -593,7 +564,7 @@ export const DispatcherPage = () => {
                             e.stopPropagation();
                             updateStatus(incident.id, "Dispatched");
                           }}
-                          className="bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-xl hover:bg-red-600 transition-colors shadow-lg"
+                          className="w-full sm:w-auto bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-xl hover:bg-red-600 transition-colors shadow-lg"
                         >
                           ACTIVATE
                         </button>
@@ -720,7 +691,7 @@ export const DispatcherPage = () => {
           {/* Top Info Bar */}
           {!selectedIncident && (
             <div className="absolute top-4 left-4 sm:top-10 sm:left-10 z-10 animate-in fade-in slide-in-from-left duration-700">
-              <div className="bg-slate-900/80 backdrop-blur-xl border border-white/5 p-3 sm:p-4 lg:p-6 rounded-2xl sm:rounded-[2.5rem] shadow-2xl min-w-[200px] sm:min-w-[300px]">
+              <div className="bg-slate-900/80 backdrop-blur-xl border border-white/5 p-3 sm:p-4 lg:p-6 rounded-2xl sm:rounded-[2.5rem] shadow-2xl w-[calc(100vw-2rem)] max-w-[320px] sm:w-auto sm:max-w-none sm:min-w-[300px]">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mb-1">
@@ -772,7 +743,7 @@ export const DispatcherPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                   {[
                     {
                       label: "Incident ID",
@@ -792,7 +763,7 @@ export const DispatcherPage = () => {
                     {
                       label: "Telemetry",
                       val: `${selectedIncident.lat.toFixed(6)}, ${selectedIncident.lng.toFixed(6)}`,
-                      color: "text-slate-400 text-xs",
+                      color: "text-slate-400 text-xs break-all",
                     },
                   ].map((stat, i) => (
                     <div
@@ -815,7 +786,7 @@ export const DispatcherPage = () => {
                 </div>
               </div>
 
-              <div className="w-px bg-slate-800"></div>
+              <div className="hidden lg:block w-px bg-slate-800"></div>
 
               <div className="w-full lg:w-48 flex flex-col gap-1">
                 {dialableReporterPhone ? (
