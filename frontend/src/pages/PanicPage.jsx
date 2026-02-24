@@ -1,446 +1,511 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { AlertCircle, MapPin, Navigation, Phone, Shield, Languages, CheckCircle, MessageSquare, Video, ShieldAlert, Heart, X } from 'lucide-react';
-import { ETHIOPIAN_HOSPITALS } from '../data/hospitals';
-import { getDistance, cn } from '../lib/utils';
+import { ShieldAlert, Phone, Navigation, Info, Video, Heart, CheckCircle, MessageCircle, Share2, ArrowLeft, Shield } from 'lucide-react';
 import { IncidentMap } from '../components/IncidentMap';
-import { EmergencyChat } from '../components/EmergencyChat';
-import { FirstAidGuide } from '../components/FirstAidGuide';
+import { apiFetch } from '../lib/api';
+import { VideoSOSModal } from '../components/VideoSOSModal';
 import { supabase } from '../lib/supabase';
-import { TRANSLATIONS } from '../data/translations';
-import { useNotifications } from '../components/NotificationSystem';
+import { EmergencyChat } from '../components/EmergencyChat';
+import { ShareLocation } from '../components/ShareLocation';
+import { SafetyTips } from '../components/SafetyTips';
+import { Link } from 'react-router-dom';
 
-const PANIC_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2550/2550-preview.mp3'; // Urgent Beep Pulse
-const DISPATCH_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2536/2536-preview.mp3'; // Smooth Dispatch Chirp
+const DISPATCH_ALERT_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
 
-const SuccessContent = ({ status, t, lang, nearestHospital, incidentId, onReset }) => {
-  const [rating, setRating] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
+export const PanicPage = () => {
+  const [activeIncident, setActiveIncident] = useState(null);
+  const [incidentAccessToken, setIncidentAccessToken] = useState(null);
+  const [location, setLocation] = useState(null);
+  const [incidentType, setIncidentType] = useState('Medical');
+  const [showVideoSOS, setShowVideoSOS] = useState(false);
+  const [isCitizenChatOpen, setIsCitizenChatOpen] = useState(false);
+  const dispatchAlertRef = useRef(null);
+  const seenDispatcherMessageIdsRef = useRef(new Set());
+  const responderIntervalRef = useRef(null);
+  const dispatchSimStartedRef = useRef(false);
+  const locationRef = useRef(null);
 
-  const handleRate = async (rate) => {
-    setRating(rate);
-    setSubmitted(true);
-    
-    // Save rating to Supabase
-    try {
-      await supabase
-        .from('incidents')
-        .update({ rating: rate })
-        .eq('id', incidentId);
-    } catch (err) {
-      console.error("Rating error:", err);
+  const [incidentStatus, setIncidentStatus] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [responderLocation, setResponderLocation] = useState(null);
+  const [eta, setEta] = useState(null);
+  const [distance, setDistance] = useState(null);
+  const [isShareLocationOpen, setIsShareLocationOpen] = useState(false);
+  const [showSafetyTips, setShowSafetyTips] = useState(false);
+
+  const videoRoomName = activeIncident?.id ? `quickreach-incident-${activeIncident.id}` : '';
+
+  const stopResponderSimulation = () => {
+    if (responderIntervalRef.current) {
+      clearInterval(responderIntervalRef.current);
+      responderIntervalRef.current = null;
     }
   };
 
-  if (status === 'Resolved') {
-    return (
-      <div className="bg-slate-900 text-white p-8 rounded-[2.5rem] shadow-2xl text-center border-4 border-slate-800 animate-in zoom-in duration-500">
-        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-        <h2 className="text-2xl font-black mb-2 uppercase">{t.resolved_title}</h2>
-        <p className="text-slate-400 mb-6 font-bold">{t.resolved_msg}</p>
-        
-        {!submitted ? (
-          <div className="flex flex-col items-center gap-4">
-            <p className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t.feedback}</p>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => handleRate(star)}
-                  className={cn(
-                    "text-2xl transition-all hover:scale-125",
-                    rating >= star ? "text-yellow-400" : "text-slate-700"
-                  )}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="animate-bounce text-green-500 font-black text-sm uppercase tracking-tighter">
-            {lang === 'en' ? "Thank you for the feedback!" : "ለአስተያየትዎ እናመሰግናለን!"}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <div className="bg-green-600 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-      <div className="absolute top-0 right-0 p-10 opacity-10 rotate-12">
-        <Shield className="w-32 h-32" />
-      </div>
-      <div className="relative z-10 text-center">
-        <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Navigation className="w-8 h-8 animate-bounce" />
-        </div>
-        <h2 className="text-2xl font-black mb-2">
-          {status === 'Dispatched' ? (lang === 'en' ? "HELP DISPATCHED!" : "እርዳታ ተልኳል!") : t.help_on_way}
-        </h2>
-        <p className="text-green-50 mb-6 font-bold leading-tight">
-          {status === 'Dispatched' 
-            ? (lang === 'en' ? "A team is officially on their way to your location." : "የአደጋ ጊዜ ሰራተኞች ወደ እርስዎ እየመጡ ነው።")
-            : `${t.request_received} ${nearestHospital ? `${t.hospital_coming} ${nearestHospital.name}.` : t.connecting}`}
-        </p>
-        <div className="flex flex-col items-center gap-3">
-          <div className="inline-flex items-center gap-2 text-xs font-black bg-black/20 px-4 py-2 rounded-full backdrop-blur-sm border border-white/20">
-            <Phone className="w-4 h-4" />
-            <span>{t.dispatcher_id}: #QD-{incidentId.slice(0, 5)}</span>
-          </div>
-          {status === 'Dispatched' && (
-            <div className="animate-pulse-red bg-white text-red-600 text-[10px] font-black px-4 py-1 rounded-full uppercase tracking-widest shadow-xl">
-              Live Response Active
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const PanicPage = () => {
-  // ... state and handlers ...
-  const [lang, setLang] = useState('en');
-  const [loading, setLoading] = useState(false);
-  const [userLocation, setUserLocation] = useState(null);
-  const [nearestHospital, setNearestHospital] = useState(null);
-  const [incidentId, setIncidentId] = useState(null);
-  const [status, setStatus] = useState('Pending');
-  const [error, setError] = useState(null);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [isFirstAidOpen, setIsFirstAidOpen] = useState(false);
-  const [isVideoSOSOpen, setIsVideoSOSOpen] = useState(false);
-  const { addNotification } = useNotifications();
-  const panicAudioRef = useRef(new Audio(PANIC_SOUND_URL));
-  const dispatchAudioRef = useRef(new Audio(DISPATCH_SOUND_URL));
-
-  // Preload audio on first interaction
-  useEffect(() => {
-    const unlock = () => {
-      panicAudioRef.current.load();
-      dispatchAudioRef.current.load();
-      window.removeEventListener('click', unlock);
-    };
-    window.addEventListener('click', unlock);
-    return () => window.removeEventListener('click', unlock);
-  }, []);
-
-  const t = TRANSLATIONS[lang];
-
-  const toggleLanguage = () => {
-    setLang(prev => prev === 'en' ? 'am' : 'en');
+  const getOrCreateReporterId = () => {
+    const key = 'quickreach_reporter_id';
+    const existing = localStorage.getItem(key);
+    if (existing) return existing;
+    const created = `WEB-${Math.random().toString(36).slice(2, 10).toUpperCase()}`;
+    localStorage.setItem(key, created);
+    return created;
   };
 
-  const handlePanic = async (type) => {
-    setLoading(true);
-    setError(null);
-    
-    if (!navigator.geolocation) {
-      setError(lang === 'en' ? "Geolocation is not supported." : "ጂፒኤስ በስልክዎ አይሰራም።");
-      setLoading(false);
+  const resetIncidentView = () => {
+    setActiveIncident(null);
+    setIncidentAccessToken(null);
+    setMessages([]);
+    stopResponderSimulation();
+    dispatchSimStartedRef.current = false;
+    setResponderLocation(null);
+    setIncidentStatus(null);
+    setIsCitizenChatOpen(false);
+    setEta(null);
+    setDistance(null);
+  };
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const nextLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        locationRef.current = nextLocation;
+        setLocation(nextLocation);
+      },
+      (error) => console.error(error),
+      { enableHighAccuracy: true }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  useEffect(() => {
+    if (!activeIncident?.id) return;
+
+    const addMessage = (text) => {
+      setMessages((prev) => [...prev, { time: new Date().toLocaleTimeString(), text }]);
+    };
+
+    addMessage('Alert received by dispatch. Standby...');
+    setIncidentStatus(activeIncident.status);
+
+    const channel = supabase
+      .channel(`incident-${activeIncident.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'incidents',
+          filter: `id=eq.${activeIncident.id}`
+        },
+        (payload) => {
+          const newStatus = payload.new.status;
+          setIncidentStatus(newStatus);
+          setActiveIncident((prev) => ({ ...prev, ...payload.new }));
+
+          if (newStatus === 'Dispatched') {
+            if (!dispatchSimStartedRef.current) {
+              addMessage('Dispatcher activated your case. Help is on the way.');
+              addMessage('Nearest unit dispatched. Unit is en route. Stay calm.');
+            }
+
+            if (dispatchAlertRef.current) {
+              dispatchAlertRef.current.volume = 0.8;
+              dispatchAlertRef.current.play().catch(() => {});
+            }
+
+            if (!dispatchSimStartedRef.current && locationRef.current) {
+              dispatchSimStartedRef.current = true;
+              startResponderSimulation();
+            }
+          }
+
+          if (newStatus === 'Resolved') {
+            addMessage('Incident marked resolved by dispatcher. Stay safe.');
+            stopResponderSimulation();
+            dispatchSimStartedRef.current = false;
+            setResponderLocation(null);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      stopResponderSimulation();
+      dispatchSimStartedRef.current = false;
+    };
+  }, [activeIncident?.id]);
+
+  useEffect(() => {
+    if (!activeIncident?.id || !incidentAccessToken) return;
+    seenDispatcherMessageIdsRef.current.clear();
+
+    const appendDispatcherMessage = (msg) => {
+      if (!msg || msg.sender !== 'dispatcher') return;
+      if (seenDispatcherMessageIdsRef.current.has(msg.id)) return;
+      seenDispatcherMessageIdsRef.current.add(msg.id);
+      setMessages((prev) => [
+        ...prev,
+        {
+          time: new Date(msg.created_at || Date.now()).toLocaleTimeString(),
+          text: msg.message
+        }
+      ]);
+    };
+
+    const loadExisting = async () => {
+      try {
+        const payload = await apiFetch(`/api/messages/${activeIncident.id}`, {
+          auth: false,
+          headers: { 'x-incident-token': incidentAccessToken }
+        });
+        (payload.messages || []).forEach(appendDispatcherMessage);
+      } catch (error) {
+        console.error('Load dispatcher messages failed:', error.message);
+      }
+    };
+    loadExisting();
+
+    const msgChannel = supabase
+      .channel(`incident-messages-${activeIncident.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'incident_messages',
+          filter: `incident_id=eq.${activeIncident.id}`
+        },
+        (payload) => appendDispatcherMessage(payload.new)
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(msgChannel);
+  }, [activeIncident?.id, incidentAccessToken]);
+
+  const startResponderSimulation = () => {
+    const currentLocation = locationRef.current || location;
+    if (!currentLocation) return;
+    stopResponderSimulation();
+
+    const startLoc = { lat: currentLocation.lat + 0.01, lng: currentLocation.lng + 0.01 };
+    setResponderLocation(startLoc);
+
+    const steps = 60;
+    let currentStep = 0;
+
+    responderIntervalRef.current = setInterval(() => {
+      currentStep += 1;
+      const progress = currentStep / steps;
+
+      const newLat = startLoc.lat + (currentLocation.lat - startLoc.lat) * progress;
+      const newLng = startLoc.lng + (currentLocation.lng - startLoc.lng) * progress;
+      setResponderLocation({ lat: newLat, lng: newLng });
+
+      const R = 6371;
+      const dLat = ((currentLocation.lat - newLat) * Math.PI) / 180;
+      const dLng = ((currentLocation.lng - newLng) * Math.PI) / 180;
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((newLat * Math.PI) / 180) * Math.cos((currentLocation.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+      const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      setDistance(d.toFixed(2));
+      setEta(Math.ceil(((steps - currentStep) / 60) * 2));
+
+      if (currentStep >= steps) {
+        stopResponderSimulation();
+        setMessages((prev) => [...prev, { time: new Date().toLocaleTimeString(), text: 'Unit has arrived at your location.' }]);
+        setEta(0);
+      }
+    }, 1000);
+  };
+
+  const handlePanic = async () => {
+    if (!location) {
+      alert('Acquiring location...');
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        const location = [latitude, longitude];
-        setUserLocation(location);
-
-        let minDistance = Infinity;
-        let closest = null;
-
-        ETHIOPIAN_HOSPITALS.forEach(hospital => {
-          const dist = getDistance(latitude, longitude, hospital.lat, hospital.lng);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closest = hospital;
-          }
-        });
-
-        setNearestHospital(closest);
-
-        try {
-          const payload = { 
-            type, 
-            lat: latitude, 
-            lng: longitude, 
-            status: 'Pending',
-            reporter_phone: 'Web User',
-            triage_score: type === 'Fire' ? 10 : type === 'Medical' ? 9 : type === 'Police' ? 8 : 7
-          };
-
-          let { data, error: sbError } = await supabase
-            .from('incidents')
-            .insert([payload])
-            .select();
-
-          // Fallback: If triage_score column is missing, try again without it
-          if (sbError && sbError.message.includes('triage_score')) {
-            console.warn("⚠️ [PanicPage] triage_score column missing. Retrying basic insert...");
-            const { triage_score, ...basicPayload } = payload;
-            const retry = await supabase
-              .from('incidents')
-              .insert([basicPayload])
-              .select();
-            data = retry.data;
-            sbError = retry.error;
-          }
-
-          if (sbError) throw sbError;
-          if (data) {
-            setIncidentId(data[0].id);
-            panicAudioRef.current.currentTime = 0;
-            panicAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
-
-            // Start listening for status updates for THIS specific incident
-            supabase
-              .channel(`incident_${data[0].id}`)
-              .on(
-                'postgres_changes',
-                { 
-                  event: 'UPDATE', 
-                  schema: 'public', 
-                  table: 'incidents',
-                  filter: `id=eq.${data[0].id}` 
-                },
-                (payload) => {
-                  console.log("🔄 [PanicPage] Status Update Received:", payload.new.status);
-                  if (payload.new.status === 'Dispatched') {
-                    setStatus('Dispatched');
-                    dispatchAudioRef.current.currentTime = 0;
-                    dispatchAudioRef.current.play().catch(e => console.log("Audio play failed:", e));
-                    addNotification({
-                      type: 'success',
-                      title: 'HELP DISPATCHED',
-                      message: 'A rescue unit is officially on the move to your location.'
-                    });
-                  } else if (payload.new.status === 'Resolved') {
-                    setStatus('Resolved');
-                    addNotification({
-                      type: 'success',
-                      title: 'SAFE & RESOLVED',
-                      message: 'This emergency session has been marked as complete.'
-                    });
-                  }
-                }
-              )
-              .subscribe((status) => {
-                console.log("📣 [PanicPage] Subscription Status:", status);
-              });
-          }
-        } catch (err) {
-          console.error("Supabase Error:", err.message);
-          setError(lang === 'en' 
-            ? `Connection Error: ${err.message}. Please apply SQL migrations.` 
-            : `የመረጃ ቋት ችግር፡ ${err.message}። እባክዎ SQL ሚግሬሽኑን ይጫኑ።`
-          );
+    try {
+      const reporterId = getOrCreateReporterId();
+      const incident = await apiFetch('/api/incidents/public', {
+        method: 'POST',
+        auth: false,
+        body: {
+          type: incidentType,
+          lat: location.lat,
+          lng: location.lng,
+          reporter_phone: reporterId,
+          description: 'Panic Button Pressed'
         }
+      });
 
-        setLoading(false);
-      },
-      (err) => {
-        setError(lang === 'en' ? "Please enable location services." : "እባክዎን የቦታ መገኛ (Location) ያብሩ።");
-        setLoading(false);
-      }
-    );
+      setActiveIncident(incident.incident || incident);
+      setIncidentAccessToken(incident.incident_access_token || null);
+      setIsCitizenChatOpen(true);
+    } catch (err) {
+      console.error('Panic failed:', err);
+      alert('Failed to send alert. Call 911 manually.');
+    }
   };
 
+  const statusLabel = {
+    Pending: 'Waiting for Dispatcher...',
+    Dispatched: 'Help is on the way!',
+    Resolved: 'Incident Resolved'
+  }[incidentStatus] || '';
+
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 p-4 pb-20">
-      <header className="mb-8 relative">
-        <div className="flex justify-center flex-col items-center">
-          <h1 className="text-3xl font-black text-slate-900 flex items-center gap-2">
-            <Shield className="text-red-600 w-8 h-8" />
-            {t.title}
-          </h1>
-          <p className="text-slate-500 font-bold text-sm tracking-tight">{t.subtitle}</p>
+    <div className="emergency-shell min-h-screen bg-slate-50 flex flex-col">
+      {!activeIncident && (
+        <Link to="/" className="fixed top-6 left-6 flex items-center gap-2 text-white hover:text-slate-200 transition-colors z-50 bg-red-700 px-4 py-2 rounded-full shadow-lg">
+          <ArrowLeft className="w-4 h-4" />
+          <span className="font-bold text-sm">Home</span>
+        </Link>
+      )}
+      <header className="bg-red-600 text-white p-4 sm:p-6 shadow-lg">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <ShieldAlert className="h-8 w-8" />
+            <h1 className="text-2xl font-bold tracking-tight">QuickReach SOS</h1>
+          </div>
+          <a href="tel:911" className="bg-white text-red-600 px-4 py-2 rounded-full font-bold flex items-center gap-2 hover:bg-slate-100 transition-colors">
+            <Phone className="h-4 w-4" />
+            Call 911
+          </a>
         </div>
-        
-        <button 
-          onClick={toggleLanguage}
-          className="absolute top-0 right-0 p-2 bg-white rounded-full shadow-sm border border-slate-200 text-slate-600 hover:text-red-600 transition-colors flex items-center gap-1 text-[10px] font-bold"
-        >
-          <Languages className="w-3 h-3" />
-          {t.language}
-        </button>
       </header>
 
-      <main className="flex-1 flex flex-col gap-6 max-w-md mx-auto w-full">
-        {/* Progress & Action Bar */}
-        {incidentId && (
-          <div className="flex gap-2 animate-in slide-in-from-top-4 duration-500">
-            <button 
-              onClick={() => setIsFirstAidOpen(true)}
-              className="flex-1 bg-blue-600 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20"
-            >
-              <ShieldAlert className="w-4 h-4" />
-              First Aid
-            </button>
-            <button 
-              onClick={() => setIsVideoSOSOpen(true)}
-              className="flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-lg"
-            >
-              <Video className="w-4 h-4 text-red-500" />
-              Video SOS
-            </button>
-          </div>
-        )}
-
-        {!incidentId ? (
-          <>
-            <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl border-4 border-white ring-1 ring-slate-100 text-center">
-              <h2 className="text-2xl font-black text-slate-900 mb-2">{t.emergency_question}</h2>
-              <p className="text-slate-500 mb-8 font-medium">{t.tap_below}</p>
-              
-              <div className="grid grid-cols-1 gap-5">
-                <button
-                  onClick={() => handlePanic('Medical')}
-                  disabled={loading}
-                  className={cn(
-                    "group relative overflow-hidden flex flex-col items-center justify-center py-12 px-6 rounded-3xl transition-all active:scale-95 shadow-xl",
-                    "bg-red-600 hover:bg-black text-white",
-                    loading && "opacity-70 cursor-not-allowed"
-                  )}
-                >
-                  <AlertCircle className="w-16 h-16 mb-2 animate-pulse group-hover:scale-110 transition-transform" />
-                  <span className="text-3xl font-black uppercase tracking-tighter">{t.medical}</span>
-                  <span className="text-xs opacity-80 font-bold uppercase tracking-widest">{t.medical_desc}</span>
-                </button>
-
-                <button
-                  onClick={() => handlePanic('Fire')}
-                  disabled={loading}
-                  className={cn(
-                    "group relative overflow-hidden flex flex-col items-center justify-center py-12 px-6 rounded-3xl transition-all active:scale-95 shadow-xl",
-                    "bg-orange-500 hover:bg-black text-white",
-                    loading && "opacity-70 cursor-not-allowed"
-                  )}
-                >
-                  <Shield className="w-16 h-16 mb-2 animate-pulse group-hover:scale-110 transition-transform" />
-                  <span className="text-3xl font-black uppercase tracking-tighter">{t.fire}</span>
-                  <span className="text-xs opacity-80 font-bold uppercase tracking-widest">{t.fire_desc}</span>
-                </button>
-              </div>
-              
-              {error && (
-                <div className="mt-6 p-4 bg-red-50 text-red-700 rounded-2xl text-sm border border-red-100 font-bold">
-                  {error}
-                </div>
-              )}
+      <main className="flex-1 max-w-4xl mx-auto w-full p-4 sm:p-6 grid gap-6 md:grid-cols-2">
+        <div className="space-y-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+              <Navigation className="h-5 w-5 text-blue-500" />
+              Current Status
+            </h2>
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`h-3 w-3 rounded-full ${location ? 'bg-green-500 animate-pulse' : 'bg-orange-500 animate-bounce'}`} />
+              <span className="text-sm font-medium text-slate-600">
+                {location ? 'GPS Locked - Ready to Transmit' : 'Acquiring Satellite Lock...'}
+              </span>
             </div>
-            
-            <div className="p-5 bg-black/5 rounded-2xl flex items-start gap-3 border border-black/5">
-              <Navigation className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-              <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                {t.location_shared}
+            {location && (
+              <p className="text-xs text-slate-400 font-mono">
+                {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
               </p>
-            </div>
-          </>
-        ) : (
-          <div className="space-y-6 animate-in fade-in zoom-in-95 duration-500">
-            <SuccessContent 
-              status={status} 
-              t={t} 
-              lang={lang} 
-              nearestHospital={nearestHospital} 
-              incidentId={incidentId} 
-            />
-
-            {status !== 'Resolved' && (
-              <div className="bg-white p-2 rounded-3xl shadow-xl border-4 border-white ring-1 ring-slate-100 overflow-hidden h-[350px]">
-                 <IncidentMap userLocation={userLocation} nearestHospital={nearestHospital} />
-              </div>
             )}
 
-            <button 
-              onClick={() => { setIncidentId(null); setUserLocation(null); setNearestHospital(null); setStatus('Pending'); }}
-              className="w-full py-4 bg-white rounded-2xl text-slate-500 font-black uppercase text-xs tracking-widest hover:text-red-600 transition-colors shadow-sm border border-slate-100"
-            >
-              {t.cancel}
-            </button>
+            {activeIncident && (
+              <div className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold ${
+                incidentStatus === 'Resolved' ? 'bg-green-600' : incidentStatus === 'Dispatched' ? 'bg-blue-600' : 'bg-yellow-500'
+              }`}>
+                <div className={`h-2.5 w-2.5 rounded-full bg-white ${incidentStatus === 'Dispatched' ? 'animate-ping' : ''}`} />
+                {statusLabel}
+              </div>
+            )}
           </div>
-        )}
+
+          {activeIncident && (
+            <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg border border-slate-700 max-h-60 overflow-y-auto">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-700 pb-2">
+                Live Dispatcher Updates
+              </h3>
+              <div className="space-y-3">
+                {messages.map((msg, idx) => (
+                  <div key={idx} className="flex gap-3 text-sm animate-in fade-in slide-in-from-left duration-500">
+                    <span className="text-slate-500 font-mono text-xs whitespace-nowrap">{msg.time}</span>
+                    <span className="text-slate-200">{msg.text}</span>
+                  </div>
+                ))}
+                {messages.length === 0 && <span className="text-slate-500 italic">Connecting to dispatch...</span>}
+              </div>
+            </div>
+          )}
+
+          {!activeIncident && (
+            <div className="grid grid-cols-2 gap-3">
+              {['Medical', 'Fire'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setIncidentType(type)}
+                  className={`p-3 rounded-xl border-2 font-bold text-sm transition-all ${
+                    incidentType === type ? 'border-red-500 bg-red-50 text-red-700' : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!activeIncident ? (
+            <button
+              onClick={handlePanic}
+              disabled={!location}
+              className="w-full aspect-square rounded-full bg-gradient-to-br from-red-500 to-red-700 text-white shadow-2xl shadow-red-500/30 flex flex-col items-center justify-center gap-2 hover:scale-105 active:scale-95 transition-transform disabled:opacity-50 disabled:grayscale"
+            >
+              <ShieldAlert className="h-20 w-20 animate-pulse" />
+              <span className="text-3xl font-black tracking-widest">SOS</span>
+              <span className="text-sm font-medium opacity-80 uppercase tracking-wide">Press for Help</span>
+            </button>
+          ) : incidentStatus === 'Resolved' ? (
+            <div className="bg-green-50 border-2 border-green-500 rounded-2xl p-8 text-center animate-in fade-in duration-500">
+              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-green-800 mb-2">Incident Resolved</h3>
+              <p className="text-green-600 mb-6">The dispatcher has marked this incident as closed. Stay safe!</p>
+              <button className="text-slate-400 text-sm font-medium hover:text-red-500 transition-colors" onClick={resetIncidentView}>
+                Close &amp; Start Over
+              </button>
+            </div>
+          ) : (
+            <div className={`rounded-2xl p-8 text-center animate-in fade-in zoom-in duration-300 border-2 ${
+              incidentStatus === 'Dispatched' ? 'bg-blue-50 border-blue-500' : 'bg-yellow-50 border-yellow-400'
+            }`}>
+              <div className={`h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
+                incidentStatus === 'Dispatched' ? 'bg-blue-100' : 'bg-yellow-100'
+              }`}>
+                <ShieldAlert className={`h-8 w-8 ${incidentStatus === 'Dispatched' ? 'text-blue-600' : 'text-yellow-600'}`} />
+              </div>
+              <h3 className={`text-2xl font-bold mb-2 ${incidentStatus === 'Dispatched' ? 'text-blue-800' : 'text-yellow-800'}`}>
+                {incidentStatus === 'Dispatched' ? 'Help is on the way!' : 'Alert Sent - Waiting for Dispatcher'}
+              </h3>
+              {distance && (
+                <div className="my-4 p-4 bg-white rounded-xl border border-blue-100 shadow-sm">
+                  <div className="text-3xl font-black text-slate-800">
+                    {eta} <span className="text-sm font-medium text-slate-500">mins</span>
+                  </div>
+                  <div className="text-sm text-slate-500 font-bold uppercase tracking-wide">Estimated Arrival</div>
+                  <div className="text-xs text-slate-400 mt-1">{distance} km away</div>
+                </div>
+              )}
+              <p className={`mb-6 text-sm ${incidentStatus === 'Dispatched' ? 'text-blue-600' : 'text-yellow-700'}`}>
+                {incidentStatus === 'Dispatched'
+                  ? 'Dispatch has confirmed your location. A unit is en route.'
+                  : 'Your SOS has been received. Dispatcher is reviewing your case.'}
+              </p>
+              <button className="text-slate-400 text-sm font-medium hover:text-red-500 transition-colors" onClick={resetIncidentView}>
+                Cancel Alert (False Alarm)
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <div className="h-[280px] sm:h-[340px] lg:h-[400px] bg-slate-200 rounded-3xl overflow-hidden shadow-inner relative">
+            <IncidentMap
+              userLocation={location && [location.lat, location.lng]}
+              activeIncident={activeIncident}
+              ambulanceLocation={responderLocation && [responderLocation.lat, responderLocation.lng]}
+              className="h-full rounded-3xl border-0 shadow-none"
+            />
+            {!location && (
+              <div className="absolute inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center">
+                <span className="bg-white/90 px-4 py-2 rounded-full text-xs font-bold text-slate-500 shadow-sm">Waiting for GPS...</span>
+              </div>
+            )}
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <h4 className="font-bold text-blue-800 text-sm">Quick Actions</h4>
+              <p className="text-xs text-blue-600 leading-relaxed mt-1 mb-3">
+                Stay calm. If possible, remain in your current location.
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => setShowSafetyTips(true)}
+                  disabled={!activeIncident}
+                  className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Shield className="w-4 h-4" />
+                  Safety Tips
+                </button>
+                <button
+                  onClick={() => setIsShareLocationOpen(true)}
+                  disabled={!activeIncident || !location}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share Location with Contacts
+                </button>
+                <button
+                  onClick={() => setIsCitizenChatOpen(true)}
+                  disabled={!activeIncident}
+                  className="w-full bg-slate-900 hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Chat with Dispatch
+                </button>
+                <button
+                  onClick={() => setShowVideoSOS(true)}
+                  disabled={!activeIncident}
+                  title={!activeIncident ? 'Send SOS first to start incident video room' : 'Start live video call'}
+                  className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400/60 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Video className="w-4 h-4" />
+                  Start Live Video Call
+                </button>
+                <a
+                  href="/first-aid"
+                  className="w-full bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                >
+                  <Heart className="w-4 h-4" />
+                  First Aid Guide
+                </a>
+              </div>
+            </div>
+          </div>
+
+          {/* Safety Tips - Removed from here */}
+        </div>
       </main>
 
-      {/* Floating Chat Button */}
-      {incidentId && (
-        <button 
-          onClick={() => setIsChatOpen(true)}
-          className="fixed bottom-6 right-6 bg-red-600 text-white p-4 rounded-full shadow-2xl hover:scale-110 active:scale-90 transition-all z-40 border-4 border-white"
-        >
-          <MessageSquare className="w-6 h-6" />
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white animate-pulse" />
-        </button>
-      )}
-
-      <EmergencyChat 
-        incidentId={incidentId} 
-        senderType="citizen" 
-        isOpen={isChatOpen} 
-        onClose={() => setIsChatOpen(false)} 
+      <EmergencyChat
+        incidentId={activeIncident?.id}
+        senderType="citizen"
+        isOpen={isCitizenChatOpen && !!activeIncident?.id}
+        onClose={() => setIsCitizenChatOpen(false)}
+        requireAuth={false}
+        publicIncidentToken={incidentAccessToken}
       />
 
-      <FirstAidGuide 
-        isOpen={isFirstAidOpen} 
-        onClose={() => setIsFirstAidOpen(false)} 
+      <ShareLocation
+        location={location}
+        incidentId={activeIncident?.id}
+        isOpen={isShareLocationOpen}
+        onClose={() => setIsShareLocationOpen(false)}
       />
 
-      {/* Simulated Video SOS Overlay */}
-      {isVideoSOSOpen && (
-        <div className="fixed inset-0 z-[110] bg-black animate-in fade-in duration-500 flex flex-col">
-          <div className="absolute top-10 left-6 text-white z-20">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 bg-red-600 rounded-full animate-ping" />
-              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Live Encrypted Link</span>
+      {showSafetyTips && activeIncident && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between z-10">
+              <h2 className="text-2xl font-black text-slate-900">Safety Tips</h2>
+              <button onClick={() => setShowSafetyTips(false)} className="text-slate-400 hover:text-slate-600">
+                <CheckCircle className="w-6 h-6" />
+              </button>
             </div>
-            <h2 className="text-xl font-black italic tracking-tighter">THERMAL SOS STREAM</h2>
-          </div>
-          
-          <button 
-            onClick={() => setIsVideoSOSOpen(false)}
-            className="absolute top-10 right-6 z-20 bg-white/10 p-3 rounded-full text-white hover:bg-white/20"
-          >
-            <X className="w-6 h-6" />
-          </button>
-
-          {/* Visual Simulation */}
-          <div className="flex-1 bg-gradient-to-br from-slate-900 via-red-950/20 to-slate-900 opacity-60 flex items-center justify-center">
-             <div className="relative text-center">
-                <div className="flex gap-2 justify-center mb-4">
-                   {[...Array(4)].map((_, i) => <div key={i} className="w-1 h-12 bg-red-500/20 rounded-full animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />)}
-                </div>
-                <p className="text-red-500 text-[10px] font-black uppercase tracking-[0.5em] animate-pulse">Syncing Visuals...</p>
-             </div>
-          </div>
-          
-          <div className="p-8 bg-slate-900/80 backdrop-blur-xl border-t border-white/5">
-             <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest text-center mb-4">Dispatcher is viewing your camera to assess severity</p>
-             <button 
-              onClick={() => setIsVideoSOSOpen(false)}
-              className="w-full py-4 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl shadow-red-900/40"
-             >
-               End Stream
-             </button>
+            <div className="p-6">
+              <SafetyTips incidentType={incidentType} status={incidentStatus} />
+            </div>
           </div>
         </div>
       )}
 
-      <footer className="mt-8 text-center text-slate-400 text-[10px] font-bold uppercase tracking-widest">
-        <button 
-          onClick={() => alert("SOS Alert sent to your saved Emergency Contacts! 📱")}
-          className="mb-6 mx-auto bg-slate-200 text-slate-600 px-4 py-2 rounded-full hover:bg-red-100 hover:text-red-600 transition-all border border-slate-300"
-        >
-          Notify Family & Friends (SOS)
-        </button>
-        <p>&copy; 2026 QuickReach Ethiopia</p>
-        <div className="mt-4 flex justify-center gap-4">
-          <Link to="/volunteer" className="text-blue-600 hover:underline">Community Volunteer Mode</Link>
-          <span className="text-slate-300">|</span>
-          <Link to="/first-aid" className="text-slate-500 hover:underline">Offline First Aid Guide</Link>
-        </div>
-      </footer>
+      {showVideoSOS && (
+        <VideoSOSModal
+          onClose={() => setShowVideoSOS(false)}
+          roomName={videoRoomName}
+          displayName="Citizen"
+        />
+      )}
+
+      <audio ref={dispatchAlertRef} src={DISPATCH_ALERT_URL} preload="auto" />
     </div>
   );
 };

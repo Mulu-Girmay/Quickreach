@@ -10,6 +10,7 @@ const CONTENT = {
         id: 'cpr',
         name: 'CPR (Heart Stop)',
         icon: <Heart className="w-6 h-6 text-red-500" />,
+        videoUrl: "https://www.youtube.com/embed/-NodDRTsV88?si=J0n5-wXb5J5-yK-s", // Hands-only CPR
         steps: [
           "Check for breathing and pulse.",
           "Call for help immediately.",
@@ -21,6 +22,7 @@ const CONTENT = {
         id: 'bleeding',
         name: 'Bleeding Control',
         icon: <Droplets className="w-6 h-6 text-red-500" />,
+        videoUrl: "https://www.youtube.com/embed/NxO5L4qMvJg?si=7v8-wXb5J5-yK-s", // Bleeding control
         steps: [
           "Apply direct pressure with a clean cloth.",
           "Keep pressure until help arrives.",
@@ -37,6 +39,7 @@ const CONTENT = {
         id: 'cpr',
         name: 'የልብ ምት (CPR)',
         icon: <Heart className="w-6 h-6 text-red-500" />,
+        videoUrl: "https://www.youtube.com/embed/-NodDRTsV88?si=J0n5-wXb5J5-yK-s",
         steps: [
           "መተንፈሱን እና የልብ ትርታውን ያረጋግጡ",
           "በፍጥነት የርዳታ ጥሪ ያድርጉ",
@@ -73,22 +76,37 @@ export const FirstAidPage = () => {
 
       <div className="space-y-6">
         {CONTENT[lang].categories.map((cat) => (
-          <div key={cat.id} className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl p-6 hover:bg-slate-800 transition-all cursor-pointer group shadow-2xl">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-red-500/10 rounded-2xl">
-                {cat.icon}
+          <div key={cat.id} className="bg-slate-800/50 backdrop-blur-xl border border-white/5 rounded-3xl overflow-hidden hover:bg-slate-800 transition-all group shadow-2xl">
+            {cat.videoUrl && (
+              <div className="aspect-video w-full bg-black">
+                <iframe 
+                  width="100%" 
+                  height="100%" 
+                  src={cat.videoUrl} 
+                  title={cat.name} 
+                  frameBorder="0" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  allowFullScreen
+                ></iframe>
               </div>
-              <h3 className="text-xl font-bold text-white/90">{cat.name}</h3>
-              <ChevronRight className="ml-auto w-5 h-5 text-slate-500 group-hover:text-red-400 transition-colors" />
+            )}
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-red-500/10 rounded-2xl">
+                  {cat.icon}
+                </div>
+                <h3 className="text-xl font-bold text-white/90">{cat.name}</h3>
+                <ChevronRight className="ml-auto w-5 h-5 text-slate-500 group-hover:text-red-400 transition-colors" />
+              </div>
+              <ul className="space-y-3">
+                {cat.steps.map((step, idx) => (
+                  <li key={idx} className="flex gap-3 text-slate-300 leading-snug">
+                    <span className="text-red-500 font-bold shrink-0">{idx + 1}.</span>
+                    {step}
+                  </li>
+                ))}
+              </ul>
             </div>
-            <ul className="space-y-3">
-              {cat.steps.map((step, idx) => (
-                <li key={idx} className="flex gap-3 text-slate-300 leading-snug">
-                  <span className="text-red-500 font-bold shrink-0">{idx + 1}.</span>
-                  {step}
-                </li>
-              ))}
-            </ul>
           </div>
         ))}
       </div>

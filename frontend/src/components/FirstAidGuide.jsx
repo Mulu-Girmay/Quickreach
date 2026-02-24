@@ -1,6 +1,5 @@
 import React from 'react';
 import { X, Heart, Wind, Droplets, Flame, Zap, ShieldAlert } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 const GUIDES = [
   { 

@@ -36,12 +36,26 @@ const ChangeView = ({ center }) => {
   return null;
 };
 
-export const IncidentMap = ({ userLocation, nearestHospital, ambulanceLocation, allIncidents, showHeatmap, volunteers, showVolunteers }) => {
+export const IncidentMap = ({
+  userLocation,
+  nearestHospital,
+  ambulanceLocation,
+  allIncidents,
+  showHeatmap,
+  volunteers,
+  showVolunteers,
+  className = ''
+}) => {
   const defaultCenter = [9.0197, 38.7469]; // Addis Ababa
   
   return (
-    <div className="h-[400px] w-full rounded-xl overflow-hidden shadow-lg border-2 border-slate-200">
-      <MapContainer center={userLocation || defaultCenter} zoom={13} scrollWheelZoom={false}>
+    <div className={`w-full overflow-hidden ${className || 'h-[280px] sm:h-[360px] rounded-xl shadow-lg border-2 border-slate-200'}`}>
+      <MapContainer
+        center={userLocation || defaultCenter}
+        zoom={13}
+        scrollWheelZoom={false}
+        className="h-full w-full"
+      >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -86,6 +100,7 @@ export const IncidentMap = ({ userLocation, nearestHospital, ambulanceLocation, 
             <Popup>
               <div className="font-bold text-red-600">Ambulance #QD-01</div>
               <div className="text-[10px] uppercase font-bold tracking-widest text-slate-500">Live Tracking Active</div>
+              <div className="text-xs font-bold mt-1">En Route</div>
             </Popup>
           </Marker>
         )}

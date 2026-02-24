@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
+import React, { useState, createContext, useContext } from 'react';
 import { Bell, Info, AlertTriangle, CheckCircle, X, Play } from 'lucide-react';
 
 const NotificationContext = createContext();
@@ -14,7 +14,7 @@ export const NotificationProvider = ({ children }) => {
     audio.volume = 0.6;
     audio.play().then(() => {
       setIsAudioBlocked(false);
-    }).catch(e => {
+    }).catch(() => {
       console.warn("🔊 Audio blocked");
       setIsAudioBlocked(true);
     });

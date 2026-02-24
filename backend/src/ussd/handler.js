@@ -124,102 +124,90 @@ Choose Location:
 /**
  * Logic to insert into Supabase and find nearest facility with capacity
  */
-async function triggerEmergency(data, phone, sessionId) {
+async function triggerEmergency(data, phone, sessionId = null) {
   // 1. IDEMPOTENCY CHECK
-  const { data: existing } = await supabase
-    .from('incidents')
-    .select('id, status')
-    .eq('session_id', sessionId)
-    .single();
-
-  if (existing) {
-    console.log(`[IDEMPOTENCY] Re-returning incident for session ${sessionId}`);
-    return { incidentId: existing.id, nearestFacility: "Processing..." };
-  }
-
-  // Mock coordinates based on chosen sub-city
-  const coords = {
-    'Bole': { lat: 8.9894, lng: 38.7884 },
-    'Piassa': { lat: 9.0356, lng: 38.7512 },
-    'Arada': { lat: 9.0300, lng: 38.7500 },
-    'Detected': { lat: 9.0197, lng: 38.7469 }
-  };
-  const { lat, lng } = coords[data.locationName] || coords['Detected'];
-
-  // 2. INCIDENT COLLAPSING (Deduplication)
-  // Check if someone else reported a similar incident nearby in the last 10 mins
-  const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
-  const { data: nearby } = await supabase
-    .from('incidents')
-    .select('id')
-    .eq('type', data.type)
-    .eq('status', 'Pending')
-    .gt('created_at', tenMinsAgo)
-    .filter('lat', 'gte', lat - 0.005)
-    .filter('lat', 'lte', lat + 0.005)
-    .filter('lng', 'gte', lng - 0.005)
-    .filter('lng', 'lte', lng + 0.005)
-    .limit(1);
-
-  if (nearby && nearby.length > 0) {
-    console.log(`[COLLAPSING] Incident deduplicated to parent ${nearby[0].id}`);
-    // Register as a "child" incident
-    const { data: child } = await supabase
+  if (sessionId) {
+    const { data: existing } = await supabase
       .from('incidents')
-      .insert([{
-        type: data.type,
-        lat, lng,
-        status: 'Collapsed',
-        reporter_phone: `USSD ${phone}`,
-        source: 'USSD',
-        session_id: sessionId,
-        parent_incident_id: nearby[0].id,
-        is_collapsed: true
-      }])
-      .select().single();
-    
-    return { incidentId: child.id, nearestFacility: "Request Merged with Active Response" };
+      .select('id, status')
+      .eq('session_id', sessionId)
+      .single();
+
+    if (existing) {
+      console.log(`[IDEMPOTENCY] Re-returning incident for session ${sessionId}`);
+      return { 
+        incidentId: existing.id, 
+        incident: existing, 
+        nearestFacility: "Processing...", 
+        incident_access_token: existing.id
+      };
+    }
   }
 
-  // 3. DYNAMIC ROUTING (Capacity Check)
-  // Find nearest hospital with remaining capacity
-  const { data: hospital } = await supabase
-    .from('hospitals')
-    .select('id, name')
-    .filter('current_capacity', 'lt', 'max_capacity')
-    .order('created_at', { ascending: true }) // Simulating proximity order
-    .limit(1)
-    .single();
+  // Use provided coordinates or mock based on location name
+  let lat, lng;
+  if (data.lat && data.lng) {
+    lat = data.lat;
+    lng = data.lng;
+  } else {
+    const coords = {
+      'Bole': { lat: 8.9894, lng: 38.7884 },
+      'Piassa': { lat: 9.0356, lng: 38.7512 },
+      'Arada': { lat: 9.0300, lng: 38.7500 },
+      'Detected': { lat: 9.0197, lng: 38.7469 }
+    };
+    const location = coords[data.locationName] || coords['Detected'];
+    lat = location.lat;
+    lng = location.lng;
+  }
 
-  const hospitalId = hospital ? hospital.id : null;
-  const hospitalName = hospital ? hospital.name : "Emergency Center";
+  // 2. INCIDENT COLLAPSING - Skip for now to avoid column issues
+  // Will create a new incident every time
 
-  // Insert PRIMARY incident
-  const { data: incident, error } = await supabase
+  // 3. DYNAMIC ROUTING - Simplified
+  let hospitalId = null;
+  let hospitalName = "Emergency Center";
+  
+  try {
+    const { data: hospital } = await supabase
+      .from('hospitals')
+      .select('id, name')
+      .limit(1)
+      .single();
+    
+    if (hospital) {
+      hospitalId = hospital.id;
+      hospitalName = hospital.name;
+    }
+  } catch (err) {
+    console.log('[HOSPITAL] No hospitals found, using default');
+  }
+
+  // Insert PRIMARY incident with only guaranteed columns
+  const minimalPayload = {
+    type: data.type,
+    lat,
+    lng,
+    status: 'Pending',
+    reporter_phone: phone.startsWith('USSD') ? phone : `WEB ${phone}`
+  };
+
+  let { data: incident, error } = await supabase
     .from('incidents')
-    .insert([{
-      type: data.type,
-      lat,
-      lng,
-      status: 'Pending',
-      reporter_phone: `USSD ${phone}`,
-      source: 'USSD',
-      session_id: sessionId,
-      hospital_id: hospitalId
-    }])
+    .insert([minimalPayload])
     .select()
     .single();
 
   if (error) throw error;
 
-  // Update hospital capacity if assigned
-  if (hospitalId) {
-    await supabase.rpc('increment_hospital_capacity', { row_id: hospitalId });
-  }
-
   setupEscalationTimeout(incident.id);
 
-  return { incidentId: incident.id, nearestFacility: hospitalName };
+  return { 
+    incidentId: incident.id, 
+    incident, 
+    nearestFacility: hospitalName, 
+    incident_access_token: incident.id
+  };
 }
 
 // Update the call site in ussdHandler
@@ -250,4 +238,4 @@ function setupEscalationTimeout(incidentId) {
   }, 60000);
 }
 
-module.exports = { ussdHandler };
+module.exports = { ussdHandler, triggerEmergency };

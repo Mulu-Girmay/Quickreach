@@ -1,13 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Phone, X, Delete, PhoneCall, MessageSquare } from 'lucide-react';
-import { clsx } from 'clsx';
-import { twMerge } from 'tailwind-merge';
 
-import { supabase } from '../lib/supabase';
-
-function cn(...inputs) {
-  return twMerge(clsx(inputs));
-}
+import { apiFetch } from '../lib/api';
 
 export const USSDSimulator = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -68,26 +62,17 @@ export const USSDSimulator = () => {
 
     try {
       const triageScore = type === 'Fire' ? 10 : type === 'Medical' ? 9 : 7;
-      const payload = { 
-        type, 
-        lat, 
-        lng, 
-        status: 'Pending',
-        reporter_phone: `USSD +251 (${subCity})`,
-        triage_score: triageScore
-      };
-
-      let { error } = await supabase.from('incidents').insert([payload]);
-
-      // Fallback: If triage_score column missing, retry basic
-      if (error && error.message.includes('triage_score')) {
-        console.warn("⚠️ [USSD] triage_score missing. Retrying basic...");
-        const { triage_score, ...basicPayload } = payload;
-        const retry = await supabase.from('incidents').insert([basicPayload]);
-        error = retry.error;
-      }
-      
-      if (error) throw error;
+      await apiFetch('/api/incidents/public', {
+        method: 'POST',
+        auth: false,
+        body: {
+          type,
+          lat,
+          lng,
+          reporter_phone: `USSD +251 (${subCity})`,
+          triage_score: triageScore
+        }
+      });
     } catch (err) {
       console.error("USSD Supabase error:", err);
     }

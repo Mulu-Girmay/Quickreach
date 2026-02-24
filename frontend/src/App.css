@@ -44,3 +44,17 @@
 .animate-in.zoom-in {
   animation: zoom-in 0.3s ease-out forwards;
 }
+
+/* Shared emergency look across pages */
+.emergency-shell {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(239, 68, 68, 0.08), transparent 30%),
+    radial-gradient(circle at 90% 100%, rgba(59, 130, 246, 0.08), transparent 30%);
+}
+
+.emergency-shell-light {
+  background:
+    radial-gradient(circle at 5% 0%, rgba(239, 68, 68, 0.08), transparent 28%),
+    radial-gradient(circle at 100% 100%, rgba(2, 132, 199, 0.08), transparent 32%),
+    #f8fafc;
+}
