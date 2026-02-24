@@ -9,6 +9,23 @@ export default async function handler(req, res) {
 
   const normalizedOrigin = backendOrigin.replace(/\/$/, '');
   const requestUrl = new URL(req.url, `https://${req.headers.host}`);
+
+  let upstreamBase;
+  try {
+    upstreamBase = new URL(normalizedOrigin);
+  } catch {
+    return res.status(500).json({ error: 'BACKEND_API_ORIGIN is invalid.' });
+  }
+
+  const incomingHost = String(req.headers.host || '').toLowerCase();
+  const upstreamHost = upstreamBase.host.toLowerCase();
+
+  if (incomingHost && incomingHost === upstreamHost) {
+    return res.status(500).json({
+      error: 'Proxy loop detected. BACKEND_API_ORIGIN points to the same domain.'
+    });
+  }
+
   const upstreamUrl = `${normalizedOrigin}${requestUrl.pathname}${requestUrl.search}`;
 
   const headers = { ...req.headers };
