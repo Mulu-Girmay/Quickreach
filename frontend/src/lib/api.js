@@ -1,6 +1,12 @@
 import { supabase } from './supabase';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const rawApiBase = import.meta.env.VITE_API_BASE_URL;
+
+if (!rawApiBase?.trim()) {
+  throw new Error('VITE_API_BASE_URL is required.');
+}
+
+const API_BASE = rawApiBase.replace(/\/$/, '');
 
 export async function apiFetch(path, options = {}) {
   const { body, auth = true, headers = {}, ...rest } = options;
