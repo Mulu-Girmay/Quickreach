@@ -95,7 +95,10 @@ function json(res, status, payload) {
 export default async function handler(req, res) {
   try {
     const url = new URL(req.url, `https://${req.headers.host}`);
-    const path = url.pathname;
+    const rawPath = url.pathname;
+    const path = (
+      rawPath.startsWith('/api') ? rawPath : `/api${rawPath === '/' ? '' : rawPath}`
+    ).replace(/\/+$/, '') || '/';
     const method = req.method || 'GET';
     const body = await readBody(req);
 
