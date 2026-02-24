@@ -1,64 +1,399 @@
-export default async function handler(req, res) {
-  const backendOrigin = process.env.BACKEND_API_ORIGIN?.trim();
+import { createClient } from '@supabase/supabase-js';
 
-  if (!backendOrigin) {
-    return res.status(500).json({
-      error: 'BACKEND_API_ORIGIN is not configured.'
-    });
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl?.trim()) {
+  throw new Error('SUPABASE_URL is required.');
+}
+if (!supabaseKey?.trim()) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY is required.');
+}
+
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+async function sendSMS(_to, _message) {
+  return { success: true };
+}
+
+async function triggerEmergency(data, phone) {
+  let lat;
+  let lng;
+
+  if (typeof data.lat === 'number' && typeof data.lng === 'number') {
+    lat = data.lat;
+    lng = data.lng;
+  } else {
+    const coords = {
+      Bole: { lat: 8.9894, lng: 38.7884 },
+      Piassa: { lat: 9.0356, lng: 38.7512 },
+      Arada: { lat: 9.03, lng: 38.75 },
+      Detected: { lat: 9.0197, lng: 38.7469 }
+    };
+    const location = coords[data.locationName] || coords.Detected;
+    lat = location.lat;
+    lng = location.lng;
   }
 
-  const normalizedOrigin = backendOrigin.replace(/\/$/, '');
-  const requestUrl = new URL(req.url, `https://${req.headers.host}`);
-
-  let upstreamBase;
+  let hospitalName = 'Emergency Center';
   try {
-    upstreamBase = new URL(normalizedOrigin);
+    const { data: hospital } = await supabase
+      .from('hospitals')
+      .select('id, name')
+      .limit(1)
+      .single();
+    if (hospital?.name) hospitalName = hospital.name;
   } catch {
-    return res.status(500).json({ error: 'BACKEND_API_ORIGIN is invalid.' });
+    // keep default
   }
 
-  const incomingHost = String(req.headers.host || '').toLowerCase();
-  const upstreamHost = upstreamBase.host.toLowerCase();
+  const minimalPayload = {
+    type: data.type,
+    lat,
+    lng,
+    status: 'Pending',
+    reporter_phone: String(phone || '').startsWith('USSD') ? phone : `WEB ${phone}`
+  };
 
-  if (incomingHost && incomingHost === upstreamHost) {
-    return res.status(500).json({
-      error: 'Proxy loop detected. BACKEND_API_ORIGIN points to the same domain.'
-    });
-  }
+  const { data: incident, error } = await supabase
+    .from('incidents')
+    .insert([minimalPayload])
+    .select()
+    .single();
 
-  const upstreamUrl = `${normalizedOrigin}${requestUrl.pathname}${requestUrl.search}`;
+  if (error) throw error;
 
-  const headers = { ...req.headers };
-  delete headers.host;
-  delete headers.connection;
-  delete headers['content-length'];
+  return {
+    incidentId: incident.id,
+    incident,
+    nearestFacility: hospitalName,
+    incident_access_token: incident.id
+  };
+}
 
-  let body;
-  if (req.method !== 'GET' && req.method !== 'HEAD') {
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    body = Buffer.concat(chunks);
-  }
+async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  if (req.method === 'GET' || req.method === 'HEAD') return {};
 
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString('utf8');
+  if (!raw) return {};
   try {
-    const upstream = await fetch(upstreamUrl, {
-      method: req.method,
-      headers,
-      body
-    });
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
 
-    res.status(upstream.status);
-    upstream.headers.forEach((value, key) => {
-      if (key.toLowerCase() === 'transfer-encoding') return;
-      res.setHeader(key, value);
-    });
+function json(res, status, payload) {
+  res.statusCode = status;
+  res.setHeader('Content-Type', 'application/json');
+  res.end(JSON.stringify(payload));
+}
 
-    const payload = Buffer.from(await upstream.arrayBuffer());
-    return res.send(payload);
-  } catch (error) {
-    return res.status(502).json({
-      error: 'Upstream API request failed.',
-      details: error?.message || 'Unknown error'
-    });
+export default async function handler(req, res) {
+  try {
+    const url = new URL(req.url, `https://${req.headers.host}`);
+    const path = url.pathname;
+    const method = req.method || 'GET';
+    const body = await readBody(req);
+
+    if (method === 'GET' && path === '/api/health') {
+      return json(res, 200, { ok: true });
+    }
+
+    if (method === 'POST' && path === '/api/incidents/public') {
+      try {
+        const { type, lat, lng, reporter_phone, description } = body;
+        const result = await triggerEmergency(
+          { type, lat, lng, description },
+          reporter_phone
+        );
+        return json(res, 200, result);
+      } catch (err) {
+        return json(res, 500, { error: err.message || 'Failed to create incident' });
+      }
+    }
+
+    let match = path.match(/^\/api\/incidents\/([^/]+)\/location$/);
+    if (match && method === 'PATCH') {
+      try {
+        const id = match[1];
+        const { lat, lng } = body;
+        const incidentToken = req.headers['x-incident-token'];
+
+        if (incidentToken !== id) return json(res, 401, { error: 'Invalid incident token' });
+        if (typeof lat !== 'number' || typeof lng !== 'number') {
+          return json(res, 400, { error: 'lat and lng must be numbers' });
+        }
+
+        const { data: incident, error: findError } = await supabase
+          .from('incidents')
+          .select('id, status')
+          .eq('id', id)
+          .single();
+
+        if (findError || !incident) return json(res, 404, { error: 'Incident not found' });
+        if (incident.status === 'Resolved') return json(res, 409, { error: 'Incident already resolved' });
+
+        const { data, error } = await supabase
+          .from('incidents')
+          .update({ lat, lng })
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        return json(res, 200, { incident: data });
+      } catch {
+        return json(res, 500, { error: 'Failed to update location' });
+      }
+    }
+
+    if (method === 'GET' && path === '/api/incidents') {
+      try {
+        const { data, error } = await supabase
+          .from('incidents')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return json(res, 200, { incidents: data || [] });
+      } catch {
+        return json(res, 500, { error: 'Failed to fetch incidents' });
+      }
+    }
+
+    if (method === 'GET' && path === '/api/hospitals') {
+      try {
+        const { data, error } = await supabase.from('hospitals').select('*');
+        if (error) throw error;
+        return json(res, 200, { hospitals: data || [] });
+      } catch {
+        return json(res, 500, { error: 'Failed to fetch hospitals' });
+      }
+    }
+
+    if (method === 'GET' && path === '/api/volunteers/online') {
+      try {
+        const { data, error } = await supabase
+          .from('volunteers')
+          .select('*')
+          .eq('is_online', true);
+        if (error) throw error;
+        return json(res, 200, { volunteers: data || [] });
+      } catch {
+        return json(res, 500, { error: 'Failed to fetch volunteers' });
+      }
+    }
+
+    if (method === 'GET' && path === '/api/volunteers/me') {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) return json(res, 401, { error: 'No authorization header' });
+        const token = authHeader.replace('Bearer ', '');
+        const {
+          data: { user },
+          error: authError
+        } = await supabase.auth.getUser(token);
+        if (authError || !user) return json(res, 401, { error: 'Invalid token' });
+
+        const { data, error } = await supabase
+          .from('volunteers')
+          .select('*')
+          .eq('phone', user.email)
+          .single();
+
+        if (error && error.code === 'PGRST116') {
+          const { data: newVol, error: insertError } = await supabase
+            .from('volunteers')
+            .insert([
+              {
+                name: user.user_metadata?.name || 'Volunteer',
+                phone: user.email,
+                is_online: false
+              }
+            ])
+            .select()
+            .single();
+          if (insertError) throw insertError;
+          return json(res, 200, { volunteer: newVol });
+        }
+        if (error) throw error;
+        return json(res, 200, { volunteer: data });
+      } catch {
+        return json(res, 500, { error: 'Failed to fetch profile' });
+      }
+    }
+
+    if (method === 'PATCH' && path === '/api/volunteers/me/status') {
+      try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader) return json(res, 401, { error: 'No authorization header' });
+        const token = authHeader.replace('Bearer ', '');
+        const {
+          data: { user },
+          error: authError
+        } = await supabase.auth.getUser(token);
+        if (authError || !user) return json(res, 401, { error: 'Invalid token' });
+
+        const { is_online, lat, lng } = body;
+        const updateData = { is_online, last_active: new Date().toISOString() };
+        if (lat !== undefined) updateData.lat = lat;
+        if (lng !== undefined) updateData.lng = lng;
+
+        const { data, error } = await supabase
+          .from('volunteers')
+          .update(updateData)
+          .eq('phone', user.email)
+          .select()
+          .single();
+        if (error) throw error;
+        return json(res, 200, data);
+      } catch {
+        return json(res, 500, { error: 'Failed to update status' });
+      }
+    }
+
+    match = path.match(/^\/api\/incidents\/([^/]+)\/volunteer-accept$/);
+    if (match && method === 'POST') {
+      try {
+        const id = match[1];
+        const authHeader = req.headers.authorization;
+        if (!authHeader) return json(res, 401, { error: 'No authorization header' });
+        const token = authHeader.replace('Bearer ', '');
+        const {
+          data: { user },
+          error: authError
+        } = await supabase.auth.getUser(token);
+        if (authError || !user) return json(res, 401, { error: 'Invalid token' });
+
+        const { data: volunteer } = await supabase
+          .from('volunteers')
+          .select('name')
+          .eq('phone', user.email)
+          .single();
+
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('reporter_phone, type')
+          .eq('id', id)
+          .single();
+
+        await supabase.from('incident_messages').insert([
+          {
+            incident_id: id,
+            sender: 'volunteer',
+            message: `Volunteer update: ${volunteer?.name || 'A volunteer'} has accepted this incident and is en route.`
+          }
+        ]);
+
+        if (incident?.reporter_phone && !incident.reporter_phone.toUpperCase().startsWith('USSD')) {
+          try {
+            const phone = incident.reporter_phone.replace(/[\s\-()]/g, '');
+            const smsMessage = `QuickReach: Good news! ${volunteer?.name || 'A volunteer'} is on the way to help with your ${incident.type} emergency. Stay calm, help is coming.`;
+            await sendSMS(phone, smsMessage);
+          } catch {
+            // keep request successful even if SMS fails
+          }
+        }
+
+        return json(res, 200, { success: true, message: 'Incident accepted' });
+      } catch {
+        return json(res, 500, { error: 'Failed to accept incident' });
+      }
+    }
+
+    match = path.match(/^\/api\/incidents\/([^/]+)\/status$/);
+    if (match && method === 'PATCH') {
+      try {
+        const id = match[1];
+        const { status } = body;
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('reporter_phone, type')
+          .eq('id', id)
+          .single();
+
+        const { data, error } = await supabase
+          .from('incidents')
+          .update({ status })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw error;
+
+        if (status === 'Resolved' && incident?.reporter_phone && !incident.reporter_phone.toUpperCase().startsWith('USSD')) {
+          try {
+            const phone = incident.reporter_phone.replace(/[\s\-()]/g, '');
+            const smsMessage = `QuickReach: Your ${incident.type} emergency has been resolved. We hope you are safe. Thank you for using QuickReach.`;
+            await sendSMS(phone, smsMessage);
+          } catch {
+            // keep request successful even if SMS fails
+          }
+        }
+        return json(res, 200, data);
+      } catch {
+        return json(res, 500, { error: 'Failed to update status' });
+      }
+    }
+
+    match = path.match(/^\/api\/incidents\/([^/]+)\/recommendation$/);
+    if (match && method === 'GET') return json(res, 200, { recommendation: null });
+    match = path.match(/^\/api\/incidents\/([^/]+)\/timeline$/);
+    if (match && method === 'GET') return json(res, 200, { timeline: [] });
+
+    match = path.match(/^\/api\/messages\/([^/]+)$/);
+    if (match && method === 'GET') {
+      try {
+        const incidentId = match[1];
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('id')
+          .eq('id', incidentId)
+          .single();
+        if (!incident) return json(res, 404, { error: 'Incident not found' });
+
+        const { data: messages, error } = await supabase
+          .from('incident_messages')
+          .select('*')
+          .eq('incident_id', incidentId)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        return json(res, 200, { messages });
+      } catch {
+        return json(res, 500, { error: 'Failed to fetch messages' });
+      }
+    }
+
+    if (method === 'POST' && path === '/api/messages') {
+      try {
+        const { incident_id, sender, message } = body;
+        const { data: incident } = await supabase
+          .from('incidents')
+          .select('id')
+          .eq('id', incident_id)
+          .single();
+        if (!incident) return json(res, 404, { error: 'Incident not found' });
+
+        const { data: newMessage, error } = await supabase
+          .from('incident_messages')
+          .insert([{ incident_id, sender, message }])
+          .select()
+          .single();
+        if (error) throw error;
+        return json(res, 200, newMessage);
+      } catch {
+        return json(res, 500, { error: 'Failed to send message' });
+      }
+    }
+
+    if (method === 'POST' && (path === '/api/ussd' || path === '/ussd')) {
+      return json(res, 501, { error: 'USSD endpoint not enabled in frontend serverless mode.' });
+    }
+
+    return json(res, 404, { error: 'Not found' });
+  } catch {
+    return json(res, 500, { error: 'Internal server error' });
   }
 }
