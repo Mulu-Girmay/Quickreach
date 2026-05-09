@@ -9,7 +9,7 @@ import {
   Siren,
 } from "lucide-react";
 import { cn } from "../lib/utils";
-import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/api";
 
 export const LandingPage = () => {
   const [activeTab, setActiveTab] = useState("roles");
@@ -55,15 +55,14 @@ export const LandingPage = () => {
 
     const fetchStats = async () => {
       const [hospitalsRes, volunteersRes, incidentsRes] = await Promise.all([
-        supabase.from("hospitals").select("id, lat, lng"),
-        supabase
-          .from("volunteers")
-          .select("id", { count: "exact", head: true }),
-        supabase.from("incidents").select("id, lat, lng, hospital_id"),
+        apiFetch("/api/hospitals", { auth: false }),
+        apiFetch("/api/volunteers/online", { auth: false }),
+        apiFetch("/api/incidents", { auth: false }),
       ]);
 
-      const hospitals = hospitalsRes.data || [];
-      const incidents = incidentsRes.data || [];
+      const hospitals = hospitalsRes.hospitals || [];
+      const volunteers = volunteersRes.volunteers || [];
+      const incidents = incidentsRes.incidents || [];
       const usedHospitalIds = new Set();
       for (const incident of incidents) {
         if (incident.hospital_id) {
@@ -76,38 +75,19 @@ export const LandingPage = () => {
 
       setStats({
         hospitals: usedHospitalIds.size,
-        volunteers: volunteersRes.count || 0,
+        volunteers: volunteers.length || 0,
         incidents: incidents.length,
         avgResponseSec: 2, // Can be computed from timeline data later
       });
     };
 
     fetchStats();
-
-    const channel = supabase
-      .channel("landing-stats")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "hospitals" },
-        fetchStats,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "volunteers" },
-        fetchStats,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "incidents" },
-        fetchStats,
-      )
-      .subscribe();
-
-    return () => supabase.removeChannel(channel);
+    const interval = setInterval(fetchStats, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   return (
-    <div className="emergency-shell-light min-h-screen w-full max-w-[1400px] mx-auto bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100/70 font-sans text-slate-900 selection:bg-red-100 selection:text-red-900">
+    <div className="emergency-shell-light min-h-screen w-full bg-gradient-to-b from-slate-50 via-slate-50 to-slate-100/70 font-sans text-slate-900 selection:bg-red-100 selection:text-red-900">
       {/* Hero Section */}
       <header
         className={cn(

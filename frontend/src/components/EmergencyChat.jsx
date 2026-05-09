@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, MessageCircle, X } from 'lucide-react';
-import { supabase } from '../lib/supabase';
-import { cn } from '../lib/utils'; // Assuming cn utility exists
-import { apiFetch } from '../lib/api';
+import React, { useState, useEffect, useRef } from "react";
+import { Send, MessageCircle, X } from "lucide-react";
+import { cn } from "../lib/utils"; // Assuming cn utility exists
+import { apiFetch } from "../lib/api";
 
 export const EmergencyChat = ({
   incidentId,
@@ -10,10 +9,10 @@ export const EmergencyChat = ({
   isOpen,
   onClose,
   requireAuth = true,
-  publicIncidentToken = null
+  publicIncidentToken = null,
 }) => {
   const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
+  const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef();
 
   useEffect(() => {
@@ -24,40 +23,28 @@ export const EmergencyChat = ({
       try {
         const payload = await apiFetch(`/api/messages/${incidentId}`, {
           auth: requireAuth,
-          headers: !requireAuth && publicIncidentToken ? { 'x-incident-token': publicIncidentToken } : undefined
+          headers:
+            !requireAuth && publicIncidentToken
+              ? { "x-incident-token": publicIncidentToken }
+              : undefined,
         });
         setMessages(payload.messages || []);
       } catch (error) {
-        console.error('Fetch chat failed:', error.message);
+        console.error("Fetch chat failed:", error.message);
       }
     };
 
     fetchMessages();
 
-    // Subscribe to new messages
-    const channel = supabase
-      .channel(`chat_${incidentId}`)
-      .on(
-        'postgres_changes',
-        { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'incident_messages',
-          filter: `incident_id=eq.${incidentId}`
-        },
-        (payload) => {
-          setMessages(prev => [...prev, payload.new]);
-        }
-      )
-      .subscribe();
+    const interval = setInterval(fetchMessages, 3000);
 
     return () => {
-      supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, [incidentId, requireAuth, publicIncidentToken]);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const sendMessage = async (e) => {
@@ -65,17 +52,20 @@ export const EmergencyChat = ({
     if (!newMessage.trim()) return;
 
     const msg = newMessage;
-    setNewMessage('');
+    setNewMessage("");
 
     try {
-      await apiFetch('/api/messages', {
-        method: 'POST',
+      await apiFetch("/api/messages", {
+        method: "POST",
         auth: requireAuth,
-        headers: !requireAuth && publicIncidentToken ? { 'x-incident-token': publicIncidentToken } : undefined,
-        body: { incident_id: incidentId, sender: senderType, message: msg }
+        headers:
+          !requireAuth && publicIncidentToken
+            ? { "x-incident-token": publicIncidentToken }
+            : undefined,
+        body: { incident_id: incidentId, sender: senderType, message: msg },
       });
     } catch (error) {
-      console.error('Chat error:', error.message);
+      console.error("Chat error:", error.message);
     }
   };
 
@@ -87,7 +77,9 @@ export const EmergencyChat = ({
       <div className="bg-slate-900 p-4 text-white flex justify-between items-center shrink-0">
         <div className="flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-red-500" />
-          <span className="text-xs font-black uppercase tracking-widest">Emergency Chat</span>
+          <span className="text-xs font-black uppercase tracking-widest">
+            Emergency Chat
+          </span>
         </div>
         <button onClick={onClose} className="hover:bg-white/10 p-1 rounded-lg">
           <X className="w-4 h-4" />
@@ -101,28 +93,41 @@ export const EmergencyChat = ({
             Encrypted Emergency Line Open...
           </p>
         )}
-        {messages.map((m) => (
+        {messages.map((m, idx) => (
           <div
-            key={m.id} 
+            key={m.id || m._id || idx}
             className={cn(
               "flex flex-col max-w-[88%] animate-in fade-in zoom-in-95 duration-200",
-              m.sender === senderType ? "ml-auto items-end" : "mr-auto items-start"
+              m.sender === senderType
+                ? "ml-auto items-end"
+                : "mr-auto items-start",
             )}
           >
-            <div className={cn(
-              "px-3 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-sm",
-              m.sender === senderType 
-                ? "bg-red-600 text-white rounded-br-none" 
-                : "bg-white text-slate-800 border border-slate-200 rounded-bl-none"
-            )}>
+            <div
+              className={cn(
+                "px-3 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-sm",
+                m.sender === senderType
+                  ? "bg-red-600 text-white rounded-br-none"
+                  : "bg-white text-slate-800 border border-slate-200 rounded-bl-none",
+              )}
+            >
               {m.message}
             </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
               <span>
-                {m.sender === senderType ? 'You' : (m.sender === 'dispatcher' ? 'HQ Dispatch' : 'Citizen')}
+                {m.sender === senderType
+                  ? "You"
+                  : m.sender === "dispatcher"
+                    ? "HQ Dispatch"
+                    : "Citizen"}
               </span>
               <span>•</span>
-              <span>{new Date(m.created_at || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              <span>
+                {new Date(m.created_at || Date.now()).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
             </div>
           </div>
         ))}
@@ -130,15 +135,18 @@ export const EmergencyChat = ({
       </div>
 
       {/* Input */}
-      <form onSubmit={sendMessage} className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0">
-        <input 
+      <form
+        onSubmit={sendMessage}
+        className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0"
+      >
+        <input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message..."
           className="flex-1 bg-slate-100 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-1 ring-red-600 transition-all font-medium"
         />
-        <button 
+        <button
           type="submit"
           className="bg-red-600 text-white p-2 rounded-xl hover:bg-red-700 active:scale-90 transition-all"
         >

@@ -1,10 +1,15 @@
-const jwt = require('jsonwebtoken');
-const { Volunteer } = require('../models');
+const jwt = require("jsonwebtoken");
+const { Volunteer } = require("../models");
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+const JWT_SECRET =
+  process.env.JWT_SECRET || "your-secret-key-change-in-production";
 
-const generateToken = (volunteerId) => {
-  return jwt.sign({ id: volunteerId }, JWT_SECRET, { expiresIn: '7d' });
+const generateToken = (user) => {
+  return jwt.sign(
+    { id: user._id || user.id, role: user.role || "volunteer" },
+    JWT_SECRET,
+    { expiresIn: "7d" },
+  );
 };
 
 const authMiddleware = async (req, res, next) => {
@@ -14,9 +19,9 @@ const authMiddleware = async (req, res, next) => {
       return res.status(401).json({ error: "No authorization header" });
     }
 
-    const token = authHeader.replace('Bearer ', '');
+    const token = authHeader.replace("Bearer ", "");
     const decoded = jwt.verify(token, JWT_SECRET);
-    
+
     const volunteer = await Volunteer.findById(decoded.id);
     if (!volunteer) {
       return res.status(401).json({ error: "Invalid token" });

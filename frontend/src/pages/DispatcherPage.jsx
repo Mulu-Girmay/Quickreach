@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { supabase } from "../lib/supabase";
 import { useNotifications } from "../components/NotificationSystem";
 import { IncidentMap } from "../components/IncidentMap";
 import {
@@ -48,8 +47,11 @@ export const DispatcherPage = () => {
   const audioRef = useRef(null);
   const dispatchAudioRef = useRef(null);
   const pendingAlertRef = useRef(false); // queued sound when muted
-  const videoRoomName = selectedIncident?.id
-    ? `quickreach-incident-${selectedIncident.id}`
+  const lastIncidentIdRef = useRef(null);
+  const getIncidentId = (incident) => incident?.id || incident?._id || null;
+  const selectedIncidentId = getIncidentId(selectedIncident);
+  const videoRoomName = selectedIncidentId
+    ? `quickreach-incident-${selectedIncidentId}`
     : "";
 
   const getDialablePhone = (value) => {
@@ -173,18 +175,18 @@ export const DispatcherPage = () => {
       setAmbulanceLocation(null);
       setHasUnitArrived(false);
     }
-  }, [selectedIncident?.id, selectedIncident?.status]);
+  }, [selectedIncidentId, selectedIncident?.status]);
 
   useEffect(() => {
     const loadAssist = async () => {
-      if (!selectedIncident?.id) {
+      if (!selectedIncidentId) {
         setRecommendation(null);
         setTimeline([]);
         return;
       }
       try {
         const rec = await apiFetch(
-          `/api/incidents/${selectedIncident.id}/recommendation`,
+          `/api/incidents/${selectedIncidentId}/recommendation`,
         );
         setRecommendation(rec.recommendation || null);
       } catch (error) {
@@ -193,7 +195,7 @@ export const DispatcherPage = () => {
 
       try {
         const tl = await apiFetch(
-          `/api/incidents/${selectedIncident.id}/timeline`,
+          `/api/incidents/${selectedIncidentId}/timeline`,
         );
         setTimeline(tl.timeline || []);
       } catch (error) {
@@ -202,12 +204,18 @@ export const DispatcherPage = () => {
       }
     };
     loadAssist();
-  }, [selectedIncident?.id]);
+  }, [selectedIncidentId]);
 
   useEffect(() => {
-    fetchIncidents();
-    fetchHospitals();
-    fetchVolunteers();
+    const refreshDashboard = async (notifyOnNew = false) => {
+      await Promise.all([
+        fetchIncidents(notifyOnNew),
+        fetchHospitals(),
+        fetchVolunteers(),
+      ]);
+    };
+
+    refreshDashboard(false);
 
     // Reset audio context if frozen
     const handleInteraction = () => {
@@ -216,61 +224,47 @@ export const DispatcherPage = () => {
     };
     window.addEventListener("click", handleInteraction);
 
-    const subscription = supabase
-      .channel("dispatcher_sync")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "incidents" },
-        (payload) => {
-          fetchIncidents();
-          playAlert();
-          addNotification({
-            type: "error",
-            title: "NEW EMERGENCY",
-            message: `Priority ${payload.new.type} alert from ${payload.new.reporter_phone || "Unknown"}`,
-          });
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "incidents" },
-        fetchIncidents,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "hospitals" },
-        fetchHospitals,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "volunteers" },
-        fetchVolunteers,
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "incident_messages" },
-        (payload) => {
-          const msg = String(payload.new?.message || "");
-          if (msg.startsWith("Volunteer update:")) {
-            addNotification({
-              type: "success",
-              title: "VOLUNTEER UPDATE",
-              message: msg.replace(/^Volunteer update:\s*/i, "")
-            });
-          }
-        },
-      )
-      .subscribe();
+    const interval = setInterval(() => {
+      refreshDashboard(true);
+    }, 5000);
 
     return () => {
-      supabase.removeChannel(subscription);
+      clearInterval(interval);
+      window.removeEventListener("click", handleInteraction);
     };
   }, []);
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = async (notifyOnNew = false) => {
     try {
       const payload = await apiFetch("/api/incidents");
-      setIncidents(payload.incidents || []);
+      const nextIncidents = payload.incidents || [];
+      const newestIncident = nextIncidents[0] || null;
+      const newestIncidentId = getIncidentId(newestIncident);
+
+      if (
+        notifyOnNew &&
+        newestIncidentId &&
+        lastIncidentIdRef.current &&
+        newestIncidentId !== lastIncidentIdRef.current
+      ) {
+        playAlert();
+        addNotification({
+          type: "error",
+          title: "NEW EMERGENCY",
+          message: `Priority ${newestIncident.type} alert from ${newestIncident.reporter_phone || "Unknown"}`,
+        });
+      }
+
+      lastIncidentIdRef.current = newestIncidentId || null;
+      setIncidents(nextIncidents);
+      if (selectedIncidentId) {
+        const refreshedSelected = nextIncidents.find(
+          (incident) => getIncidentId(incident) === selectedIncidentId,
+        );
+        if (refreshedSelected) {
+          setSelectedIncident(refreshedSelected);
+        }
+      }
     } catch (error) {
       console.error("Fetch incidents failed:", error.message);
     }
@@ -372,7 +366,7 @@ export const DispatcherPage = () => {
         body: { status },
       });
       if (status === "Dispatched") playDispatch();
-      if (selectedIncident?.id === id) {
+      if (selectedIncidentId === id) {
         setSelectedIncident((prev) => ({ ...prev, status }));
       }
       fetchIncidents();
@@ -500,6 +494,7 @@ export const DispatcherPage = () => {
 
           {activeIncidents.map((incident) =>
             (() => {
+              const incidentId = getIncidentId(incident);
               const nearestHospital = getNearestHospital(
                 incident.lat,
                 incident.lng,
@@ -510,15 +505,15 @@ export const DispatcherPage = () => {
               const full = maxCap > 0 && currentCap >= maxCap;
               return (
                 <div
-                  key={incident.id}
+                  key={incidentId}
                   onClick={() => setSelectedIncident(incident)}
                   className={cn(
                     "p-5 rounded-[2rem] border-2 transition-all duration-300 cursor-pointer group",
-                    selectedIncident?.id === incident.id
+                    selectedIncidentId === incidentId
                       ? "bg-white border-white text-slate-900 shadow-[0_0_30px_rgba(255,255,255,0.1)] scale-[0.98]"
                       : "bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800",
                     incident.status === "Pending" &&
-                      selectedIncident?.id !== incident.id &&
+                      selectedIncidentId !== incidentId &&
                       "border-red-600/30 bg-red-600/5",
                   )}
                 >
@@ -529,7 +524,7 @@ export const DispatcherPage = () => {
                         incident.type === "Fire"
                           ? "bg-orange-500/10 border-orange-500/20 text-orange-500"
                           : "bg-blue-500/10 border-blue-500/20 text-blue-500",
-                        selectedIncident?.id === incident.id &&
+                        selectedIncidentId === incidentId &&
                           "bg-slate-900 text-white border-slate-900",
                       )}
                     >
@@ -548,7 +543,7 @@ export const DispatcherPage = () => {
                     <h3
                       className={cn(
                         "text-lg font-black tracking-tight",
-                        selectedIncident?.id === incident.id
+                        selectedIncidentId === incidentId
                           ? "text-slate-900"
                           : "text-slate-200",
                       )}
@@ -584,7 +579,7 @@ export const DispatcherPage = () => {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            updateStatus(incident.id, "Dispatched");
+                            updateStatus(incidentId, "Dispatched");
                           }}
                           className="bg-slate-900 text-white text-[10px] font-black px-4 py-2 rounded-xl hover:bg-red-600 transition-colors shadow-lg"
                         >
@@ -624,43 +619,51 @@ export const DispatcherPage = () => {
               </div>
 
               <div className="space-y-2">
-                {resolvedHistory.map((incident) => (
-                  <div
-                    key={incident.id}
-                    onClick={() => setSelectedIncident(incident)}
-                    className={cn(
-                      "p-3 rounded-2xl border transition-all duration-300 cursor-pointer flex items-center justify-between",
-                      selectedIncident?.id === incident.id
-                        ? "bg-slate-100 border-white text-slate-900"
-                        : "bg-slate-800/20 border-white/5 text-slate-500 hover:bg-slate-800/40",
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <CheckCircle
+                {resolvedHistory.map((incident) =>
+                  (() => {
+                    const incidentId = getIncidentId(incident);
+                    return (
+                      <div
+                        key={incidentId}
+                        onClick={() => setSelectedIncident(incident)}
                         className={cn(
-                          "w-4 h-4",
-                          selectedIncident?.id === incident.id
-                            ? "text-green-600"
-                            : "text-slate-600",
+                          "p-3 rounded-2xl border transition-all duration-300 cursor-pointer flex items-center justify-between",
+                          selectedIncidentId === incidentId
+                            ? "bg-slate-100 border-white text-slate-900"
+                            : "bg-slate-800/20 border-white/5 text-slate-500 hover:bg-slate-800/40",
                         )}
-                      />
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-tight line-clamp-1">
-                          {incident.reporter_phone}
-                        </p>
-                        <p className="text-[8px] font-bold opacity-50 uppercase tracking-widest">
-                          {incident.type} • Resolved
-                        </p>
+                      >
+                        <div className="flex items-center gap-3">
+                          <CheckCircle
+                            className={cn(
+                              "w-4 h-4",
+                              selectedIncidentId === incidentId
+                                ? "text-green-600"
+                                : "text-slate-600",
+                            )}
+                          />
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-tight line-clamp-1">
+                              {incident.reporter_phone}
+                            </p>
+                            <p className="text-[8px] font-bold opacity-50 uppercase tracking-widest">
+                              {incident.type} • Resolved
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[8px] font-bold opacity-40">
+                          {new Date(incident.created_at).toLocaleTimeString(
+                            [],
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            },
+                          )}
+                        </span>
                       </div>
-                    </div>
-                    <span className="text-[8px] font-bold opacity-40">
-                      {new Date(incident.created_at).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
-                  </div>
-                ))}
+                    );
+                  })(),
+                )}
               </div>
             </div>
           )}
@@ -681,7 +684,7 @@ export const DispatcherPage = () => {
             volunteers={volunteers}
             showVolunteers={showVolunteers}
             nearestHospital={null}
-            className="h-[42vh] sm:h-[50vh] lg:h-full rounded-none border-0 shadow-none"
+            className="h-[28vh] sm:h-[36vh] lg:h-[50vh] rounded-none border-0 shadow-none"
           />
 
           <div className="absolute top-10 right-10 z-10 hidden sm:flex flex-col gap-2 scale-90 origin-top-right">
@@ -723,7 +726,7 @@ export const DispatcherPage = () => {
           </div>
 
           <EmergencyChat
-            incidentId={selectedIncident?.id}
+            incidentId={selectedIncidentId}
             senderType="dispatcher"
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
@@ -775,26 +778,26 @@ export const DispatcherPage = () => {
         </div>
 
         {selectedIncident && (
-          <div className="p-4 sm:p-8 sm:pb-12 bg-slate-900 border-t border-slate-800 z-30 animate-in slide-in-from-bottom duration-500">
+          <div className="p-3 sm:p-4 sm:pb-8 bg-slate-900 border-t border-slate-800 z-30 animate-in slide-in-from-bottom duration-500 overflow-hidden">
             <div className="max-w-6xl mx-auto flex flex-col xl:flex-row items-stretch gap-6 xl:gap-10">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="bg-red-600 w-2 h-10 rounded-full shadow-[0_0_20px_rgba(220,38,38,0.5)]"></div>
                   <div>
-                    <h2 className="text-3xl font-black text-white italic tracking-tight uppercase">
+                    <h2 className="text-2xl font-black text-white italic tracking-tight uppercase">
                       Emergency Profile
                     </h2>
-                    <p className="text-slate-500 text-[10px] font-bold tracking-[0.2em]">
+                    <p className="text-slate-500 text-[9px] font-bold tracking-[0.2em]">
                       Live Telemetry & Geodata
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-4 gap-4">
+                <div className="grid grid-cols-4 gap-3">
                   {[
                     {
                       label: "Incident ID",
-                      val: `#${selectedIncident.id.slice(0, 8)}`,
+                      val: `#${String(selectedIncidentId || "N/A").slice(0, 8)}`,
                       color: "text-white",
                     },
                     {
@@ -815,14 +818,14 @@ export const DispatcherPage = () => {
                   ].map((stat, i) => (
                     <div
                       key={i}
-                      className="bg-slate-800/50 p-4 rounded-2xl border border-white/5"
+                      className="bg-slate-800/50 p-3 rounded-2xl border border-white/5"
                     >
                       <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
                         {stat.label}
                       </p>
                       <p
                         className={cn(
-                          "font-black tracking-tighter",
+                          "font-black tracking-tighter text-sm",
                           stat.color,
                         )}
                       >
@@ -859,38 +862,49 @@ export const DispatcherPage = () => {
 
               <div className="w-px bg-slate-800"></div>
 
-              <div className="w-80 flex flex-col justify-center gap-4">
-                {dialableReporterPhone ? (
+              <div className="w-72 flex flex-col justify-center gap-3">
+                <div className="flex items-center gap-2">
+                  {dialableReporterPhone ? (
+                    <button
+                      className="flex-1 bg-white text-slate-900 py-2 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-slate-200 transition-all text-sm"
+                      onClick={() =>
+                        window.open(`tel:${dialableReporterPhone}`)
+                      }
+                    >
+                      <Phone className="w-4 h-4 fill-slate-900" />
+                      CALL
+                    </button>
+                  ) : (
+                    <div className="flex-1 bg-slate-800 text-slate-400 py-2 rounded-2xl font-black flex items-center justify-center gap-2 border border-white/10 text-sm">
+                      <Phone className="w-4 h-4" />
+                      NO PHONE
+                    </div>
+                  )}
+
                   <button
-                    className="w-full bg-white text-slate-900 py-4 rounded-3xl font-black flex items-center justify-center gap-3 hover:bg-slate-200 transition-all group"
-                    onClick={() => window.open(`tel:${dialableReporterPhone}`)}
+                    className="px-3 py-2 bg-blue-600/20 text-blue-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-blue-500/20 hover:bg-blue-600/30 transition-all"
+                    onClick={() => setIsChatOpen(true)}
+                    title="Open incident chat"
                   >
-                    <Phone className="w-5 h-5 fill-slate-900 group-hover:scale-110 transition-transform" />
-                    CALL REPORTER
+                    <MessageCircle className="w-4 h-4" />
+                    CHAT
                   </button>
-                ) : (
-                  <div className="w-full bg-slate-800 text-slate-400 py-4 rounded-3xl font-black flex items-center justify-center gap-3 border border-white/10">
-                    <Phone className="w-5 h-5" />
-                    REPORTER PHONE UNAVAILABLE
+
+                  <button
+                    className="px-3 py-2 bg-emerald-600/20 text-emerald-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-emerald-500/20 hover:bg-emerald-600/30 transition-all"
+                    onClick={() => setIsVideoCallOpen(true)}
+                    title="Start live video call for this incident"
+                  >
+                    <Video className="w-4 h-4" />
+                    VIDEO
+                  </button>
+                </div>
+
+                {dialableReporterPhone && (
+                  <div className="text-xs text-slate-400 mt-1 text-center break-words">
+                    {dialableReporterPhone}
                   </div>
                 )}
-
-                <button
-                  className="w-full bg-blue-600/20 text-blue-400 py-4 rounded-3xl font-black flex items-center justify-center gap-3 border border-blue-500/20 hover:bg-blue-600/30 transition-all font-sans"
-                  onClick={() => setIsChatOpen(true)}
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  OPEN INCIDENT CHAT
-                </button>
-
-                <button
-                  className="w-full bg-emerald-600/20 text-emerald-400 py-4 rounded-3xl font-black flex items-center justify-center gap-3 border border-emerald-500/20 hover:bg-emerald-600/30 transition-all font-sans"
-                  onClick={() => setIsVideoCallOpen(true)}
-                  title="Start live video call for this incident"
-                >
-                  <Video className="w-5 h-5" />
-                  OPEN VIDEO CALL
-                </button>
 
                 <div className="grid grid-cols-2 gap-3">
                   {selectedIncident.status !== "Resolved" && (
@@ -921,7 +935,7 @@ export const DispatcherPage = () => {
                       <button
                         className="bg-red-600 text-white py-3 rounded-2xl font-black text-xs hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() =>
-                          updateStatus(selectedIncident.id, "Dispatched")
+                          updateStatus(selectedIncidentId, "Dispatched")
                         }
                         disabled={selectedIncident.status === "Dispatched"}
                       >
@@ -932,7 +946,7 @@ export const DispatcherPage = () => {
                       <button
                         className="bg-slate-800 text-white py-3 rounded-2xl font-black text-xs hover:bg-slate-700 border border-white/5 italic"
                         onClick={() =>
-                          updateStatus(selectedIncident.id, "Resolved")
+                          updateStatus(selectedIncidentId, "Resolved")
                         }
                       >
                         RESOLVE
@@ -948,7 +962,7 @@ export const DispatcherPage = () => {
                   )}
                 </div>
 
-                <div className="bg-slate-800/40 p-3 rounded-2xl border border-white/5 max-h-40 overflow-y-auto">
+                <div className="bg-slate-800/40 p-3 rounded-2xl border border-white/5 max-h-28 overflow-y-auto">
                   <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
                     Incident Timeline
                   </p>
@@ -960,8 +974,15 @@ export const DispatcherPage = () => {
                     timeline
                       .slice(-5)
                       .reverse()
-                      .map((evt) => (
-                        <div key={evt.id} className="mb-2">
+                      .map((evt, idx) => (
+                        <div
+                          key={
+                            evt.id ||
+                            evt._id ||
+                            `${evt.created_at || ""}-${idx}`
+                          }
+                          className="mb-2"
+                        >
                           <p className="text-[10px] text-white font-bold">
                             {evt.event_type}
                           </p>

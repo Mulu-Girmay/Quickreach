@@ -1,61 +1,41 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
-import { Shield } from 'lucide-react';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../components/AuthProvider";
+import { Shield } from "lucide-react";
 
 export const VolunteerLoginPage = () => {
-  const [email, setEmail] = useState('volunteer@quickreach.demo');
-  const [password, setPassword] = useState('password123');
-  const [name, setName] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn, signUp } = useAuth();
 
   const handleVolunteerLogin = async (e) => {
     e.preventDefault();
     if (isSignUp && !name.trim()) {
-      alert('Please enter your name.');
+      alert("Please enter your name.");
       return;
     }
     setLoading(true);
     try {
       if (isSignUp) {
-         const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-               data: {
-                  role: 'volunteer',
-                  name: name.trim()
-               }
-            }
-         });
-         if (error) throw error;
-         if (data.session) navigate('/volunteer');
+        const { error } = await signUp({
+          email,
+          password,
+          role: "volunteer",
+          name: name.trim(),
+        });
+        if (error) throw error;
+        navigate("/volunteer");
       } else {
-         const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password
-         });
-
-         if (error) {
-            if (error.message.includes('Invalid login credentials') && email.includes('demo')) {
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                    email,
-                    password,
-                    options: { data: { role: 'volunteer', name: name.trim() || 'Demo Volunteer' } }
-                });
-                if (signUpError) throw signUpError;
-                if (signUpData.session) navigate('/volunteer');
-            } else {
-                throw error;
-            }
-         } else {
-            navigate('/volunteer');
-         }
+        const { error } = await signIn(email, password);
+        if (error) throw error;
+        navigate("/volunteer");
       }
     } catch (error) {
-      console.error('Auth failed:', error.message);
+      console.error("Auth failed:", error.message);
       alert(error.message);
     } finally {
       setLoading(false);
@@ -69,56 +49,70 @@ export const VolunteerLoginPage = () => {
           <Shield className="w-8 h-8 text-blue-500" />
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">Volunteer Access</h1>
-        <p className="text-slate-400 mb-8">{isSignUp ? 'Join the Network' : 'First Responder Login'}</p>
-        
+        <p className="text-slate-400 mb-8">
+          {isSignUp ? "Join the Network" : "First Responder Login"}
+        </p>
+
         <form onSubmit={handleVolunteerLogin} className="space-y-4 text-left">
-           {isSignUp && (
-             <div>
-                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Full Name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  placeholder="Your name"
-                />
-             </div>
-           )}
-           <div>
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Email</label>
-              <input 
-                type="email" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+          {isSignUp && (
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase ml-1">
+                Full Name
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                placeholder="volunteer@email.com"
+                placeholder="Your name"
               />
-           </div>
-           <div>
-              <label className="text-xs font-bold text-slate-500 uppercase ml-1">Password</label>
-              <input 
-                type="password" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                placeholder="••••••"
-              />
-           </div>
-           
-           <button 
-             type="submit"
-             disabled={loading}
-             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all mt-4"
-           >
-             {loading ? 'Connecting...' : (isSignUp ? 'Sign Up as Volunteer' : 'Login')}
-           </button>
+            </div>
+          )}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase ml-1">
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Email"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase ml-1">
+              Password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              placeholder="Password"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all mt-4"
+          >
+            {loading
+              ? "Connecting..."
+              : isSignUp
+                ? "Sign Up as Volunteer"
+                : "Login"}
+          </button>
         </form>
 
-        <button 
-           onClick={() => setIsSignUp(!isSignUp)}
-           className="text-xs text-slate-500 mt-6 hover:text-white transition-colors"
+        <button
+          onClick={() => setIsSignUp(!isSignUp)}
+          className="text-xs text-slate-500 mt-6 hover:text-white transition-colors"
         >
-           {isSignUp ? 'Already have an account? Sign In' : 'New Volunteer? Sign Up Here'}
+          {isSignUp
+            ? "Already have an account? Sign In"
+            : "New Volunteer? Sign Up Here"}
         </button>
       </div>
     </div>

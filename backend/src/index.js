@@ -73,6 +73,19 @@ app.get("/api/incidents", async (req, res) => {
   }
 });
 
+app.get("/api/incidents/:id", async (req, res) => {
+  try {
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) {
+      return res.status(404).json({ error: "Incident not found" });
+    }
+    res.json({ incident });
+  } catch (err) {
+    console.error("Fetch incident error:", err);
+    res.status(500).json({ error: "Failed to fetch incident" });
+  }
+});
+
 app.get("/api/hospitals", async (req, res) => {
   try {
     const hospitals = await Hospital.find();
@@ -526,19 +539,27 @@ io.on("connection", (socket) => {
 // Auth endpoints
 app.post("/api/auth/register", async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role = "volunteer" } = req.body;
     const bcrypt = require("bcryptjs");
     const hashedPassword = await bcrypt.hash(password, 10);
+
+    const normalizedRole = String(role || "volunteer").toLowerCase();
+    const allowedRoles = ["citizen", "volunteer", "dispatcher", "admin"];
+    if (!allowedRoles.includes(normalizedRole)) {
+      return res.status(400).json({ error: "Invalid role" });
+    }
 
     const volunteer = await Volunteer.create({
       name: name || email.split("@")[0],
       email,
       password: hashedPassword,
+      role: normalizedRole,
     });
 
-    const token = generateToken(volunteer._id);
+    const token = generateToken(volunteer);
     res.json({
       token,
+      user: { ...volunteer.toObject(), password: undefined },
       volunteer: { ...volunteer.toObject(), password: undefined },
     });
   } catch (err) {
@@ -557,9 +578,10 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    const token = generateToken(volunteer._id);
+    const token = generateToken(volunteer);
     res.json({
       token,
+      user: { ...volunteer.toObject(), password: undefined },
       volunteer: { ...volunteer.toObject(), password: undefined },
     });
   } catch (err) {
@@ -568,9 +590,49 @@ app.post("/api/auth/login", async (req, res) => {
   }
 });
 
+const seedDemoAccounts = async () => {
+  const bcrypt = require("bcryptjs");
+  const demoAccounts = [
+    {
+      email: "dispatcher@quickreach.demo",
+      password: "password123",
+      role: "dispatcher",
+      name: "HQ Commander",
+    },
+    {
+      email: "volunteer@quickreach.demo",
+      password: "password123",
+      role: "volunteer",
+      name: "Demo Volunteer",
+    },
+  ];
+
+  for (const account of demoAccounts) {
+    const hashedPassword = await bcrypt.hash(account.password, 10);
+    await Volunteer.findOneAndUpdate(
+      { email: account.email },
+      {
+        $set: {
+          name: account.name,
+          role: account.role,
+          password: hashedPassword,
+        },
+      },
+      { upsert: true, new: true },
+    );
+  }
+
+  try {
+    await Volunteer.syncIndexes();
+  } catch (error) {
+    console.warn("⚠️ Volunteer index sync skipped:", error.message);
+  }
+};
+
 const startServer = async () => {
   try {
     await connectDB();
+    await seedDemoAccounts();
     server.listen(PORT, () => {
       console.log(`
   🚑 QuickReach Backend Service
