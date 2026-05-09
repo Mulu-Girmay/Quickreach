@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { UserCheck, MapPin, Bell, Shield } from "lucide-react";
 import { IncidentMap } from "../components/IncidentMap";
 import { apiFetch } from "../lib/api";
+import { connectSocket } from "../lib/socket";
 export const VolunteerMode = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [nearbyIncidents, setNearbyIncidents] = useState([]);
@@ -118,8 +119,19 @@ export const VolunteerMode = () => {
   useEffect(() => {
     if (!isOnline) return;
     fetchNearbyIncidents();
-    const interval = setInterval(fetchNearbyIncidents, 5000);
-    return () => clearInterval(interval);
+
+    const socket = connectSocket();
+    const refreshNearbyIncidents = () => {
+      fetchNearbyIncidents();
+    };
+
+    socket.on("new-incident", refreshNearbyIncidents);
+    socket.on("incident-updated", refreshNearbyIncidents);
+
+    return () => {
+      socket.off("new-incident", refreshNearbyIncidents);
+      socket.off("incident-updated", refreshNearbyIncidents);
+    };
   }, [isOnline, location]);
 
   return (

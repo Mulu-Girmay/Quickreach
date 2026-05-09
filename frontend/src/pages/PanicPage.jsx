@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { IncidentMap } from "../components/IncidentMap";
 import { apiFetch } from "../lib/api";
+import { connectSocket } from "../lib/socket";
 import { VideoSOSModal } from "../components/VideoSOSModal";
 import { EmergencyChat } from "../components/EmergencyChat";
 
@@ -91,6 +92,9 @@ export const PanicPage = () => {
   useEffect(() => {
     if (!activeIncident?.id) return;
 
+    const incidentId = activeIncident.id;
+    const socket = connectSocket();
+
     const addMessage = (text) => {
       setMessages((prev) => [
         ...prev,
@@ -98,47 +102,46 @@ export const PanicPage = () => {
       ]);
     };
 
-    addMessage("Alert received by dispatch. Standby...");
-    setIncidentStatus(activeIncident.status);
-    lastIncidentStatusRef.current = activeIncident.status;
+    const applyIncidentUpdate = (nextIncident) => {
+      if (!nextIncident) return;
+
+      const newStatus = nextIncident.status;
+      const previousStatus = lastIncidentStatusRef.current;
+      setIncidentStatus(newStatus);
+      setActiveIncident((prev) => ({ ...prev, ...nextIncident }));
+      lastIncidentStatusRef.current = newStatus;
+
+      if (newStatus === "Dispatched" && previousStatus !== "Dispatched") {
+        if (!dispatchSimStartedRef.current) {
+          addMessage("Dispatcher activated your case. Help is on the way.");
+          addMessage("Nearest unit dispatched. Unit is en route. Stay calm.");
+        }
+
+        if (dispatchAlertRef.current) {
+          dispatchAlertRef.current.volume = 0.8;
+          dispatchAlertRef.current.play().catch(() => {});
+        }
+
+        if (!dispatchSimStartedRef.current && locationRef.current) {
+          dispatchSimStartedRef.current = true;
+          startResponderSimulation();
+        }
+      }
+
+      if (newStatus === "Resolved" && previousStatus !== "Resolved") {
+        addMessage("Incident marked resolved by dispatcher. Stay safe.");
+        stopResponderSimulation();
+        dispatchSimStartedRef.current = false;
+        setResponderLocation(null);
+      }
+    };
 
     const syncIncident = async () => {
       try {
-        const payload = await apiFetch(`/api/incidents/${activeIncident.id}`, {
+        const payload = await apiFetch(`/api/incidents/${incidentId}`, {
           auth: false,
         });
-        const nextIncident = payload.incident;
-        if (!nextIncident) return;
-
-        const newStatus = nextIncident.status;
-        const previousStatus = lastIncidentStatusRef.current;
-        setIncidentStatus(newStatus);
-        setActiveIncident((prev) => ({ ...prev, ...nextIncident }));
-        lastIncidentStatusRef.current = newStatus;
-
-        if (newStatus === "Dispatched" && previousStatus !== "Dispatched") {
-          if (!dispatchSimStartedRef.current) {
-            addMessage("Dispatcher activated your case. Help is on the way.");
-            addMessage("Nearest unit dispatched. Unit is en route. Stay calm.");
-          }
-
-          if (dispatchAlertRef.current) {
-            dispatchAlertRef.current.volume = 0.8;
-            dispatchAlertRef.current.play().catch(() => {});
-          }
-
-          if (!dispatchSimStartedRef.current && locationRef.current) {
-            dispatchSimStartedRef.current = true;
-            startResponderSimulation();
-          }
-        }
-
-        if (newStatus === "Resolved" && previousStatus !== "Resolved") {
-          addMessage("Incident marked resolved by dispatcher. Stay safe.");
-          stopResponderSimulation();
-          dispatchSimStartedRef.current = false;
-          setResponderLocation(null);
-        }
+        applyIncidentUpdate(payload.incident);
       } catch (error) {
         console.error("Incident status sync failed:", error.message);
       }
@@ -146,7 +149,7 @@ export const PanicPage = () => {
 
     const loadDispatcherMessages = async () => {
       try {
-        const payload = await apiFetch(`/api/messages/${activeIncident.id}`, {
+        const payload = await apiFetch(`/api/messages/${incidentId}`, {
           auth: false,
           headers: incidentAccessToken
             ? { "x-incident-token": incidentAccessToken }
@@ -154,8 +157,13 @@ export const PanicPage = () => {
         });
         (payload.messages || []).forEach((msg) => {
           if (!msg || msg.sender !== "dispatcher") return;
-          if (seenDispatcherMessageIdsRef.current.has(msg.id)) return;
-          seenDispatcherMessageIdsRef.current.add(msg.id);
+          const messageId = msg.id || msg._id;
+          if (messageId && seenDispatcherMessageIdsRef.current.has(messageId)) {
+            return;
+          }
+          if (messageId) {
+            seenDispatcherMessageIdsRef.current.add(messageId);
+          }
           setMessages((prev) => [
             ...prev,
             {
@@ -169,16 +177,46 @@ export const PanicPage = () => {
       }
     };
 
+    const handleIncidentChannelUpdate = (nextIncident) => {
+      if (!nextIncident) return;
+      if (
+        String(nextIncident.id || nextIncident._id || "") !== String(incidentId)
+      ) {
+        return;
+      }
+      applyIncidentUpdate(nextIncident);
+    };
+
+    const handleMessageChannelUpdate = (msg) => {
+      if (!msg || msg.sender !== "dispatcher") return;
+      const messageId = msg.id || msg._id;
+      if (messageId && seenDispatcherMessageIdsRef.current.has(messageId))
+        return;
+      if (messageId) seenDispatcherMessageIdsRef.current.add(messageId);
+      setMessages((prev) => [
+        ...prev,
+        {
+          time: new Date(msg.created_at || Date.now()).toLocaleTimeString(),
+          text: msg.message,
+        },
+      ]);
+    };
+
+    addMessage("Alert received by dispatch. Standby...");
+    setIncidentStatus(activeIncident.status);
+    lastIncidentStatusRef.current = activeIncident.status;
+
+    socket.on(`incident-${incidentId}`, handleIncidentChannelUpdate);
+    socket.on("incident-updated", handleIncidentChannelUpdate);
+    socket.on(`message-${incidentId}`, handleMessageChannelUpdate);
+
     syncIncident();
     loadDispatcherMessages();
 
-    const interval = setInterval(() => {
-      syncIncident();
-      loadDispatcherMessages();
-    }, 3000);
-
     return () => {
-      clearInterval(interval);
+      socket.off(`incident-${incidentId}`, handleIncidentChannelUpdate);
+      socket.off("incident-updated", handleIncidentChannelUpdate);
+      socket.off(`message-${incidentId}`, handleMessageChannelUpdate);
       stopResponderSimulation();
       dispatchSimStartedRef.current = false;
     };

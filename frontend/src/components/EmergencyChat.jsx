@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Send, MessageCircle, X } from "lucide-react";
 import { cn } from "../lib/utils"; // Assuming cn utility exists
 import { apiFetch } from "../lib/api";
+import { connectSocket } from "../lib/socket";
 
 export const EmergencyChat = ({
   incidentId,
@@ -18,7 +19,6 @@ export const EmergencyChat = ({
   useEffect(() => {
     if (!incidentId) return;
 
-    // Fetch existing messages
     const fetchMessages = async () => {
       try {
         const payload = await apiFetch(`/api/messages/${incidentId}`, {
@@ -35,11 +35,30 @@ export const EmergencyChat = ({
     };
 
     fetchMessages();
+    const socket = connectSocket();
+    const handleIncomingMessage = (message) => {
+      if (!message) return;
+      const messageIncidentId = String(
+        message.incident_id || message.incidentId || "",
+      );
+      if (messageIncidentId !== String(incidentId)) return;
 
-    const interval = setInterval(fetchMessages, 3000);
+      const messageId = message.id || message._id;
+      setMessages((prev) => {
+        if (
+          messageId &&
+          prev.some((item) => (item.id || item._id) === messageId)
+        ) {
+          return prev;
+        }
+        return [...prev, message];
+      });
+    };
+
+    socket.on(`message-${incidentId}`, handleIncomingMessage);
 
     return () => {
-      clearInterval(interval);
+      socket.off(`message-${incidentId}`, handleIncomingMessage);
     };
   }, [incidentId, requireAuth, publicIncidentToken]);
 

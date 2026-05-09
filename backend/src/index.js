@@ -346,6 +346,8 @@ app.patch("/api/volunteers/me/status", authMiddleware, async (req, res) => {
       { new: true },
     );
 
+    io.emit("volunteer-updated", volunteer);
+
     res.json(volunteer);
   } catch (err) {
     console.error("Update volunteer status error:", err);

@@ -21,6 +21,7 @@ import { IVRSimulator } from "../components/IVRSimulator";
 import { VideoSOSModal } from "../components/VideoSOSModal";
 import { cn } from "../lib/utils";
 import { apiFetch } from "../lib/api";
+import { connectSocket } from "../lib/socket";
 
 const ALERT_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"; // Urgent Emergency Alarm
@@ -207,30 +208,30 @@ export const DispatcherPage = () => {
   }, [selectedIncidentId]);
 
   useEffect(() => {
-    const refreshDashboard = async (notifyOnNew = false) => {
-      await Promise.all([
-        fetchIncidents(notifyOnNew),
-        fetchHospitals(),
-        fetchVolunteers(),
-      ]);
-    };
+    fetchIncidents(false);
+    fetchHospitals();
+    fetchVolunteers();
 
-    refreshDashboard(false);
+    const socket = connectSocket();
+    const refreshIncidents = () => fetchIncidents(true);
+    const refreshVolunteerList = () => fetchVolunteers();
 
     // Reset audio context if frozen
     const handleInteraction = () => {
-      audioRef.current.load();
+      audioRef.current?.load();
       window.removeEventListener("click", handleInteraction);
     };
     window.addEventListener("click", handleInteraction);
 
-    const interval = setInterval(() => {
-      refreshDashboard(true);
-    }, 5000);
+    socket.on("new-incident", refreshIncidents);
+    socket.on("incident-updated", refreshIncidents);
+    socket.on("volunteer-updated", refreshVolunteerList);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener("click", handleInteraction);
+      socket.off("new-incident", refreshIncidents);
+      socket.off("incident-updated", refreshIncidents);
+      socket.off("volunteer-updated", refreshVolunteerList);
     };
   }, []);
 
