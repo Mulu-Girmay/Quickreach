@@ -10,6 +10,7 @@ const { Incident, Volunteer, Hospital, Message } = require("./models");
 const { ussdHandler } = require("./ussd/handler");
 const { sendSMS } = require("./lib/sms");
 const { authMiddleware, generateToken } = require("./lib/auth");
+const { getVapidPublicKey, sendPushNotification } = require("./lib/push");
 
 const app = express();
 const server = http.createServer(app);
@@ -18,6 +19,64 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:3000",
 ];
+
+const EMERGENCY_TEAM_ROLES = ["volunteer", "dispatcher", "admin"];
+
+const normalizePushSubscription = (subscription, userAgent = "") => {
+  if (
+    !subscription?.endpoint ||
+    !subscription?.keys?.p256dh ||
+    !subscription?.keys?.auth
+  ) {
+    return null;
+  }
+
+  return {
+    endpoint: subscription.endpoint,
+    expirationTime: subscription.expirationTime || null,
+    keys: {
+      p256dh: subscription.keys.p256dh,
+      auth: subscription.keys.auth,
+    },
+    userAgent: userAgent || "",
+    created_at: new Date(),
+  };
+};
+
+const emitPushToEmergencyTeam = async (payload) => {
+  const recipients = await Volunteer.find({
+    role: { $in: EMERGENCY_TEAM_ROLES },
+    "push_subscriptions.0": { $exists: true },
+  }).lean();
+
+  const jobs = [];
+
+  for (const recipient of recipients) {
+    for (const subscription of recipient.push_subscriptions || []) {
+      jobs.push(
+        (async () => {
+          try {
+            await sendPushNotification(subscription, payload);
+          } catch (error) {
+            const statusCode = error?.statusCode || error?.status;
+            if (statusCode === 410 || statusCode === 404) {
+              await Volunteer.updateOne(
+                { _id: recipient._id },
+                {
+                  $pull: {
+                    push_subscriptions: { endpoint: subscription.endpoint },
+                  },
+                },
+              );
+            }
+          }
+        })(),
+      );
+    }
+  }
+
+  await Promise.allSettled(jobs);
+};
 
 const io = new Server(server, {
   cors: { origin: allowedOrigins },
@@ -37,6 +96,10 @@ app.use(bodyParser.urlencoded({ extended: false }));
 // Routes
 app.get("/", (req, res) => {
   res.json({ message: "QuickReach Backend API is live." });
+});
+
+app.get("/api/push/vapid-public-key", (req, res) => {
+  res.json({ publicKey: getVapidPublicKey() });
 });
 
 /**
@@ -67,6 +130,16 @@ app.post("/api/incidents/public", async (req, res) => {
     }
 
     io.emit("new-incident", result.incident);
+    await emitPushToEmergencyTeam({
+      title: "New Emergency Alert",
+      body: `${result.incident.type} incident reported. Open QuickReach to review details.`,
+      url: "/dispatcher",
+      tag: `incident-${result.incident._id || result.incident.id}`,
+      data: {
+        incidentId: String(result.incident._id || result.incident.id || ""),
+        status: result.incident.status || "Pending",
+      },
+    });
     res.json(result);
   } catch (err) {
     console.error("Public Incident Error:", err.message, err.details || err);
@@ -374,6 +447,16 @@ app.post(
         message: `Volunteer update: ${volunteer.name} has accepted this incident and is en route.`,
       });
 
+      await emitPushToEmergencyTeam({
+        title: "Volunteer Accepted Incident",
+        body: `${volunteer.name} accepted the ${incident.type} incident and is en route.`,
+        url: "/dispatcher",
+        tag: `incident-accept-${id}`,
+        data: {
+          incidentId: String(id),
+        },
+      });
+
       if (
         incident.reporter_phone &&
         !incident.reporter_phone.toUpperCase().startsWith("USSD")
@@ -414,6 +497,17 @@ app.patch("/api/incidents/:id/status", async (req, res) => {
     io.emit("incident-updated", incident);
     io.emit(`incident-${id}`, incident);
 
+    await emitPushToEmergencyTeam({
+      title: `Incident ${status}`,
+      body: `${incident.type} case is now marked ${status.toLowerCase()}.`,
+      url: "/dispatcher",
+      tag: `incident-status-${id}`,
+      data: {
+        incidentId: String(id),
+        status,
+      },
+    });
+
     if (
       status === "Resolved" &&
       incident.reporter_phone &&
@@ -432,6 +526,54 @@ app.patch("/api/incidents/:id/status", async (req, res) => {
   } catch (err) {
     console.error("Update status error:", err);
     res.status(500).json({ error: "Failed to update status" });
+  }
+});
+
+app.post("/api/push/subscribe", authMiddleware, async (req, res) => {
+  try {
+    const { subscription } = req.body;
+    const normalized = normalizePushSubscription(
+      subscription,
+      req.headers["user-agent"],
+    );
+
+    if (!normalized) {
+      return res.status(400).json({ error: "Invalid push subscription" });
+    }
+
+    const volunteer = await Volunteer.findByIdAndUpdate(
+      req.user._id,
+      {
+        $pull: { push_subscriptions: { endpoint: normalized.endpoint } },
+        $push: { push_subscriptions: normalized },
+      },
+      { new: true },
+    );
+
+    res.json({ success: true, volunteer });
+  } catch (err) {
+    console.error("Subscribe push error:", err);
+    res.status(500).json({ error: "Failed to subscribe to push" });
+  }
+});
+
+app.post("/api/push/unsubscribe", authMiddleware, async (req, res) => {
+  try {
+    const endpoint = req.body?.endpoint || req.body?.subscription?.endpoint;
+    if (!endpoint) {
+      return res.status(400).json({ error: "Missing subscription endpoint" });
+    }
+
+    const volunteer = await Volunteer.findByIdAndUpdate(
+      req.user._id,
+      { $pull: { push_subscriptions: { endpoint } } },
+      { new: true },
+    );
+
+    res.json({ success: true, volunteer });
+  } catch (err) {
+    console.error("Unsubscribe push error:", err);
+    res.status(500).json({ error: "Failed to unsubscribe from push" });
   }
 });
 

@@ -29,6 +29,24 @@ const VolunteerSchema = new mongoose.Schema({
   lat: Number,
   lng: Number,
   last_active: Date,
+  push_subscriptions: {
+    type: [
+      new mongoose.Schema(
+        {
+          endpoint: { type: String, required: true },
+          expirationTime: { type: Number, default: null },
+          keys: {
+            p256dh: { type: String, required: true },
+            auth: { type: String, required: true },
+          },
+          userAgent: { type: String },
+          created_at: { type: Date, default: Date.now },
+        },
+        { _id: false },
+      ),
+    ],
+    default: [],
+  },
   created_at: { type: Date, default: Date.now },
 });
 
