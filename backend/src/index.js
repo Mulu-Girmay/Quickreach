@@ -13,13 +13,24 @@ const { authMiddleware, generateToken } = require("./lib/auth");
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins = [
+  "https://quickreach-1.onrender.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 const io = new Server(server, {
-  cors: { origin: "*" },
+  cors: { origin: allowedOrigins },
 });
 const PORT = process.env.PORT || 3000;
 
 // Middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  }),
+);
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
