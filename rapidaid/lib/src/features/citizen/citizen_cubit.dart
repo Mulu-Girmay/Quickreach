@@ -79,6 +79,7 @@ class CitizenCubit extends Cubit<CitizenState> {
   }
 
   Future<void> triggerPanic() async {
+    // Check location permission
     if (!state.locationReady) {
       final ready = await _checkLocationReady(forceRequest: true);
       emit(state.copyWith(locationReady: ready));
@@ -93,6 +94,7 @@ class CitizenCubit extends Cubit<CitizenState> {
       }
     }
 
+    // Get GPS position
     final position = await _repository.captureLocation();
     if (position == null) {
       emit(
@@ -104,14 +106,19 @@ class CitizenCubit extends Cubit<CitizenState> {
       return;
     }
 
+    // Get reporter phone
     final reporterPhone = await _flushReporterPhone();
     if (reporterPhone != state.reporterPhone.trim()) {
       await _repository.saveReporterPhone(reporterPhone);
     }
 
+    // Check connectivity
     final connectivity = await _isConnected();
     final offlineCreated = !connectivity;
 
+    print("🟢 Creating incident. Online: $connectivity");
+
+    // Create local incident
     final incident = await _repository.createLocalIncident(
       type: state.selectedType,
       lat: position.latitude,
@@ -123,19 +130,45 @@ class CitizenCubit extends Cubit<CitizenState> {
       offlineCreated: offlineCreated,
     );
 
+    print("✅ Incident created: ${incident.localId}");
+
+    // Show success message
     await _reloadFromDb(
-      message: "Saved locally. Hold on for sync.",
+      message: connectivity
+          ? "Emergency saved! Sending to dispatch..."
+          : "Saved locally. Will send when online.",
       activeLocalId: incident.localId,
       canUndo: true,
       undoUntil: DateTime.now().add(const Duration(seconds: 8)),
     );
 
-    _releaseTimer?.cancel();
-    _releaseTimer = Timer(const Duration(seconds: 8), () async {
-      await releaseIncident(incident.localId);
-    });
+    if (connectivity) {
+      print("🟢 Online - syncing immediately...");
 
-    await BackgroundSyncService.scheduleImmediateSync();
+      await _repository.releaseIncidentForSync(incident.localId);
+
+      await _repository.processSyncQueue();
+
+      await BackgroundSyncService.scheduleImmediateSync();
+
+      emit(
+        state.copyWith(
+          transientMessage: "✅ Emergency sent to dispatch! Help is on the way.",
+          syncing: false,
+        ),
+      );
+
+      print("✅ Sync completed");
+    } else {
+      print("🔴 Offline - scheduling retry in 8 seconds");
+
+      // Offline - schedule retry when network returns
+      _releaseTimer?.cancel();
+      _releaseTimer = Timer(const Duration(seconds: 8), () async {
+        print("🟡 Retrying sync for ${incident.localId}");
+        await releaseIncident(incident.localId);
+      });
+    }
   }
 
   Future<void> releaseIncident(String localId) async {
