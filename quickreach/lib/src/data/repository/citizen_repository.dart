@@ -128,17 +128,12 @@ class CitizenRepository {
 
   Future<void> cancelIncident(String localId) async {
     await _db.markIncidentCancelled(localId);
-    final jobs = await _db.listDueSyncJobs(DateTime.now().add(const Duration(days: 365)));
-    for (final job in jobs) {
-      if (job.localId == localId) {
-        await _db.deleteSyncJob(job.queueId);
-      }
-    }
+    await _db.deleteSyncJobsByLocalId(localId);
   }
 
   Future<void> releaseIncidentForSync(String localId) async {
     final now = DateTime.now();
-    final jobs = await _db.listDueSyncJobs(now.add(const Duration(days: 365)));
+    final jobs = await _db.listSyncJobsByLocalId(localId);
     for (final job in jobs) {
       if (job.localId == localId && job.status == "holding") {
         await _db.updateSyncJob(

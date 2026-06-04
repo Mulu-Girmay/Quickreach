@@ -161,6 +161,22 @@ class IncidentDatabase {
     await db.delete("sync_queue", where: "queue_id = ?", whereArgs: [queueId]);
   }
 
+  Future<void> deleteSyncJobsByLocalId(String localId) async {
+    final db = await database;
+    await db.delete("sync_queue", where: "local_id = ?", whereArgs: [localId]);
+  }
+
+  Future<List<SyncQueueRecord>> listSyncJobsByLocalId(String localId) async {
+    final db = await database;
+    final rows = await db.query(
+      "sync_queue",
+      where: "local_id = ?",
+      whereArgs: [localId],
+      orderBy: "next_attempt_at ASC",
+    );
+    return rows.map(SyncQueueRecord.fromMap).toList(growable: false);
+  }
+
   Future<void> markIncidentCancelled(String localId) async {
     final db = await database;
     await db.update(

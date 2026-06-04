@@ -540,6 +540,12 @@ export const DispatcherPage = () => {
                     </span>
                   </div>
 
+                  {incident.offline_created && (
+                    <div className="mb-3 inline-flex items-center rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-orange-300">
+                      Delayed report
+                    </div>
+                  )}
+
                   <div className="mb-4">
                     <h3
                       className={cn(
@@ -839,6 +845,12 @@ export const DispatcherPage = () => {
                   <p className="text-xs text-amber-400 mt-3 font-bold">
                     SLA Due:{" "}
                     {new Date(selectedIncident.sla_due_at).toLocaleTimeString()}
+                  </p>
+                )}
+
+                {selectedIncident.offline_created && (
+                  <p className="mt-3 inline-flex items-center rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-orange-300">
+                    Delayed report
                   </p>
                 )}
 
