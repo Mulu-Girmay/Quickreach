@@ -123,6 +123,24 @@ Choose Location:
  */
 async function triggerEmergency(data, phone, sessionId = null) {
   // 1. IDEMPOTENCY CHECK
+  if (data?.client_request_id) {
+    const existingClientIncident = await Incident.findOne({
+      client_request_id: data.client_request_id,
+    });
+
+    if (existingClientIncident) {
+      console.log(
+        `[IDEMPOTENCY] Re-returning incident for client request ${data.client_request_id}`,
+      );
+      return {
+        incidentId: existingClientIncident._id,
+        incident: existingClientIncident,
+        nearestFacility: "Processing...",
+        incident_access_token: existingClientIncident._id,
+      };
+    }
+  }
+
   if (sessionId) {
     const existing = await Incident.findOne({ session_id: sessionId });
 
@@ -176,7 +194,10 @@ async function triggerEmergency(data, phone, sessionId = null) {
     status: 'Pending',
     reporter_phone: phone.startsWith('USSD') ? phone : `WEB ${phone}`,
     session_id: sessionId,
-    hospital_id: hospitalId
+    hospital_id: hospitalId,
+    offline_created: Boolean(data.offline_created),
+    client_created_at: data.client_created_at ? new Date(data.client_created_at) : undefined,
+    client_request_id: data.client_request_id || undefined,
   });
 
   setupEscalationTimeout(incident._id);

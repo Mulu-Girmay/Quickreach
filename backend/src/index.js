@@ -293,10 +293,27 @@ const { triggerEmergency } = require("./ussd/handler");
 
 app.post("/api/incidents/public", async (req, res) => {
   try {
-    const { type, lat, lng, reporter_phone, description } = req.body;
+    const {
+      type,
+      lat,
+      lng,
+      reporter_phone,
+      description,
+      offline_created = false,
+      client_created_at,
+      client_request_id,
+    } = req.body;
 
     const result = await triggerEmergency(
-      { type, lat, lng, description },
+      {
+        type,
+        lat,
+        lng,
+        description,
+        offline_created,
+        client_created_at,
+        client_request_id,
+      },
       reporter_phone,
     );
 
