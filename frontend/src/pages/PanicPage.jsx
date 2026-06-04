@@ -93,6 +93,7 @@ export const PanicPage = () => {
     if (!activeIncident?.id) return;
 
     const incidentId = activeIncident.id;
+    const incidentToken = incidentAccessToken || activeIncident?.id || activeIncident?._id;
     const socket = connectSocket();
 
     const addMessage = (text) => {
@@ -140,6 +141,9 @@ export const PanicPage = () => {
       try {
         const payload = await apiFetch(`/api/incidents/${incidentId}`, {
           auth: false,
+          headers: incidentToken
+            ? { "x-incident-token": incidentToken }
+            : undefined,
         });
         applyIncidentUpdate(payload.incident);
       } catch (error) {
@@ -151,8 +155,8 @@ export const PanicPage = () => {
       try {
         const payload = await apiFetch(`/api/messages/${incidentId}`, {
           auth: false,
-          headers: incidentAccessToken
-            ? { "x-incident-token": incidentAccessToken }
+          headers: incidentToken
+            ? { "x-incident-token": incidentToken }
             : undefined,
         });
         (payload.messages || []).forEach((msg) => {

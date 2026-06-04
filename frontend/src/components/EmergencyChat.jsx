@@ -15,6 +15,7 @@ export const EmergencyChat = ({
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef();
+  const incidentToken = publicIncidentToken || incidentId;
 
   useEffect(() => {
     if (!incidentId) return;
@@ -24,8 +25,8 @@ export const EmergencyChat = ({
         const payload = await apiFetch(`/api/messages/${incidentId}`, {
           auth: requireAuth,
           headers:
-            !requireAuth && publicIncidentToken
-              ? { "x-incident-token": publicIncidentToken }
+            !requireAuth && incidentToken
+              ? { "x-incident-token": incidentToken }
               : undefined,
         });
         setMessages(payload.messages || []);
@@ -78,8 +79,8 @@ export const EmergencyChat = ({
         method: "POST",
         auth: requireAuth,
         headers:
-          !requireAuth && publicIncidentToken
-            ? { "x-incident-token": publicIncidentToken }
+          !requireAuth && incidentToken
+            ? { "x-incident-token": incidentToken }
             : undefined,
         body: { incident_id: incidentId, sender: senderType, message: msg },
       });

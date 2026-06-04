@@ -529,3 +529,33 @@ The system is built for **scalability**, **reliability**, and **accessibility** 
 ---
 
 _Report Generated: May 9, 2026_
+
+Push notifications for volunteers and dispatchers
+Right now notifications are mostly in-app. Add browser push alerts so volunteers still get emergency alerts when the tab is closed. This is very important for a response platform.
+Relevant area: NotificationSystem.jsx
+
+Offline / low-network incident queue
+Panic reporting still depends on a live network. A queued offline mode with background sync would let users submit emergencies even with weak signal, which is a strong fit for this project.
+Relevant area: PanicPage.jsx
+
+Automated escalation rules
+Add logic so incidents automatically escalate if they are not accepted or dispatched within a time window. That improves safety and reduces manual monitoring.
+Relevant area: index.js
+
+Full multilingual UI
+You already have translations data, but the app still looks partially hardcoded. Wiring the whole UI to language switching would be a strong product feature, especially for Ethiopia.
+Relevant area: translations.js
+
+Audit trail / incident history
+Add a log of who dispatched, accepted, updated, or closed each incident. This helps with accountability and later reporting.
+Relevant area: index.js
+
+Real SMS/USSD integration
+The low-bandwidth flow is valuable, but it should be connected to a real gateway instead of staying partly simulated. That expands access a lot.
+Relevant areas: handler.js, sms.js
+
+Road-aware routing for responders
+The map and distance logic are good, but adding road-based ETA routing would make hospital and ambulance recommendations much more accurate.
+Relevant area: IncidentMap.jsx
+
+If you want the single best feature to build next, I’d pick real-time Socket.IO updates plus push notifications. That gives the biggest jump in usefulness and makes the w

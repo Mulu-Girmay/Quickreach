@@ -22,6 +22,190 @@ const allowedOrigins = [
 
 const EMERGENCY_TEAM_ROLES = ["volunteer", "dispatcher", "admin"];
 
+const normalizeRole = (value) => String(value || "").toLowerCase();
+
+const normalizeIncidentMessageRole = (value) => {
+  const role = normalizeRole(value);
+  if (role === "admin") return "dispatcher";
+  if (["citizen", "volunteer", "dispatcher"].includes(role)) return role;
+  return null;
+};
+
+const getIncidentAccessToken = (req) =>
+  String(req.headers["x-incident-token"] || "").trim();
+
+const haversineKm = (lat1, lng1, lat2, lng2) => {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+};
+
+const requireRoles = (...allowedRoles) => {
+  const normalizedAllowed = allowedRoles.map(normalizeRole);
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: "Authentication required" });
+    }
+
+    const role = normalizeRole(req.user.role);
+    if (!normalizedAllowed.includes(role)) {
+      return res.status(403).json({ error: "Insufficient role permissions" });
+    }
+
+    return next();
+  };
+};
+
+const requireIncidentAccess = async (req, res, next) => {
+  const incidentId =
+    req.params.incidentId || req.params.id || req.body?.incident_id || req.body?.incidentId;
+  const token = getIncidentAccessToken(req);
+  const authHeader = req.headers.authorization;
+
+  if (authHeader) {
+    return authMiddleware(req, res, () => {
+      const role = normalizeIncidentMessageRole(req.user?.role);
+      if (!role) {
+        return res.status(403).json({ error: "Insufficient role permissions" });
+      }
+
+      if (role === "citizen") {
+        if (!token) {
+          return res.status(401).json({ error: "Incident token required" });
+        }
+        if (!incidentId || String(token) !== String(incidentId)) {
+          return res.status(403).json({ error: "Invalid incident token" });
+        }
+      }
+
+      return next();
+    });
+  }
+
+  if (!token) {
+    return res.status(401).json({ error: "Incident token required" });
+  }
+
+  if (!incidentId) {
+    return res.status(400).json({ error: "Incident id is required" });
+  }
+
+  if (String(token) !== String(incidentId)) {
+    return res.status(403).json({ error: "Invalid incident token" });
+  }
+
+  return next();
+};
+
+const buildIncidentRecommendation = async (incident) => {
+  const hospitals = await Hospital.find().lean();
+  const incidentLat = Number(incident?.lat);
+  const incidentLng = Number(incident?.lng);
+
+  if (
+    !Number.isFinite(incidentLat) ||
+    !Number.isFinite(incidentLng) ||
+    hospitals.length === 0
+  ) {
+    return {
+      hospital_name: "No hospital available",
+      eta_minutes: null,
+      capacity_confidence: 0,
+      distance_km: null,
+      available_beds: null,
+      capacity: null,
+      contact: null,
+    };
+  }
+
+  let nearestHospital = null;
+  let nearestDistanceKm = Infinity;
+
+  for (const hospital of hospitals) {
+    const hospitalLat = Number(hospital.lat);
+    const hospitalLng = Number(hospital.lng);
+    if (!Number.isFinite(hospitalLat) || !Number.isFinite(hospitalLng)) continue;
+
+    const distanceKm = haversineKm(
+      incidentLat,
+      incidentLng,
+      hospitalLat,
+      hospitalLng,
+    );
+
+    if (distanceKm < nearestDistanceKm) {
+      nearestDistanceKm = distanceKm;
+      nearestHospital = hospital;
+    }
+  }
+
+  if (!nearestHospital) {
+    return {
+      hospital_name: "No hospital available",
+      eta_minutes: null,
+      capacity_confidence: 0,
+      distance_km: null,
+      available_beds: null,
+      capacity: null,
+      contact: null,
+    };
+  }
+
+  const capacity = Number(
+    nearestHospital.capacity ?? nearestHospital.max_capacity ?? 0,
+  );
+  const availableBeds = Number(
+    nearestHospital.available_beds ?? nearestHospital.current_capacity ?? 0,
+  );
+  const availabilityRatio =
+    capacity > 0 ? Math.max(0, Math.min(1, availableBeds / capacity)) : 0.5;
+  const etaMinutes = Math.max(2, Math.round((nearestDistanceKm / 35) * 60));
+
+  return {
+    hospital_name: nearestHospital.name || "Nearest hospital",
+    eta_minutes: etaMinutes,
+    capacity_confidence: Number(availabilityRatio.toFixed(2)),
+    distance_km: Number(nearestDistanceKm.toFixed(1)),
+    available_beds: availableBeds,
+    capacity,
+    contact: nearestHospital.contact || null,
+    hospital_id: nearestHospital._id || nearestHospital.id || null,
+  };
+};
+
+const buildIncidentTimeline = async (incident) => {
+  const messages = await Message.find({ incident_id: incident._id })
+    .sort({ created_at: 1 })
+    .lean();
+
+  const events = [
+    {
+      event_type: `incident.reported.${normalizeRole(incident.type || "unknown")}`,
+      created_at: incident.created_at || new Date(),
+      detail: `Incident reported by ${incident.reporter_phone || "Unknown"}.`,
+    },
+  ];
+
+  for (const message of messages) {
+    events.push({
+      event_type: `message.${normalizeIncidentMessageRole(message.sender) || "unknown"}`,
+      created_at: message.created_at || new Date(),
+      detail: message.message,
+      sender: message.sender,
+    });
+  }
+
+  return events.sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+};
+
 const normalizePushSubscription = (subscription, userAgent = "") => {
   if (
     !subscription?.endpoint ||
@@ -157,9 +341,10 @@ app.get("/api/incidents", async (req, res) => {
   }
 });
 
-app.get("/api/incidents/:id", async (req, res) => {
+app.get("/api/incidents/:id", requireIncidentAccess, async (req, res) => {
   try {
-    const incident = await Incident.findById(req.params.id);
+    const incident =
+      req.publicIncident || (await Incident.findById(req.params.id));
     if (!incident) {
       return res.status(404).json({ error: "Incident not found" });
     }
@@ -180,7 +365,11 @@ app.get("/api/hospitals", async (req, res) => {
   }
 });
 
-app.get("/api/analytics/overview", async (req, res) => {
+app.get(
+  "/api/analytics/overview",
+  authMiddleware,
+  requireRoles("dispatcher", "admin"),
+  async (req, res) => {
   try {
     const [incidents, hospitals, volunteers, messages] = await Promise.all([
       Incident.find().lean(),
@@ -204,6 +393,24 @@ app.get("/api/analytics/overview", async (req, res) => {
     const onlineVolunteers = volunteers.filter(
       (volunteer) => volunteer.is_online,
     );
+    const averagePriority =
+      incidents.length > 0
+        ? incidents.reduce(
+            (sum, incident) => sum + Number(incident.triage_score || 0),
+            0,
+          ) / incidents.length
+        : 0;
+    const collapseRatePct =
+      dispatchedIncidents > 0
+        ? Math.max(
+            0,
+            Math.min(
+              100,
+              ((dispatchedIncidents - resolvedIncidents) / dispatchedIncidents) *
+                100,
+            ),
+          )
+        : 0;
 
     const responseDurations = incidents
       .map((incident) => {
@@ -349,6 +556,12 @@ app.get("/api/analytics/overview", async (req, res) => {
         email: volunteer.email,
       }));
 
+    const operatorAccountability = messages.reduce((acc, message) => {
+      const key = normalizeIncidentMessageRole(message.sender) || "unknown";
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
     res.json({
       metrics: {
         total_incidents: totalIncidents,
@@ -369,7 +582,10 @@ app.get("/api/analytics/overview", async (req, res) => {
           volunteers.length > 0
             ? Math.round((onlineVolunteers.length / volunteers.length) * 100)
             : 0,
+        collapse_rate_pct: Math.round(collapseRatePct),
+        average_priority: Number(averagePriority.toFixed(1)),
       },
+      operator_accountability: operatorAccountability,
       incident_trends: incidentTrends,
       emergency_distribution: emergencyDistribution,
       hospital_load: hospitalLoad,
@@ -397,7 +613,11 @@ app.get("/api/volunteers/online", async (req, res) => {
   }
 });
 
-app.get("/api/volunteers/me", authMiddleware, async (req, res) => {
+app.get(
+  "/api/volunteers/me",
+  authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
+  async (req, res) => {
   try {
     res.json({ volunteer: req.user });
   } catch (err) {
@@ -406,7 +626,11 @@ app.get("/api/volunteers/me", authMiddleware, async (req, res) => {
   }
 });
 
-app.patch("/api/volunteers/me/status", authMiddleware, async (req, res) => {
+app.patch(
+  "/api/volunteers/me/status",
+  authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
+  async (req, res) => {
   try {
     const { is_online, lat, lng } = req.body;
     const updateData = { is_online, last_active: new Date() };
@@ -431,6 +655,7 @@ app.patch("/api/volunteers/me/status", authMiddleware, async (req, res) => {
 app.post(
   "/api/incidents/:id/volunteer-accept",
   authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
   async (req, res) => {
     try {
       const { id } = req.params;
@@ -441,10 +666,11 @@ app.post(
         return res.status(404).json({ error: "Incident not found" });
       }
 
+      const responderLabel = normalizeIncidentMessageRole(volunteer.role) || "volunteer";
       await Message.create({
         incident_id: id,
-        sender: "volunteer",
-        message: `Volunteer update: ${volunteer.name} has accepted this incident and is en route.`,
+        sender: responderLabel,
+        message: `${responderLabel === "dispatcher" ? "Dispatcher" : "Volunteer"} update: ${volunteer.name} has accepted this incident and is en route.`,
       });
 
       await emitPushToEmergencyTeam({
@@ -478,7 +704,11 @@ app.post(
   },
 );
 
-app.patch("/api/incidents/:id/status", async (req, res) => {
+app.patch(
+  "/api/incidents/:id/status",
+  authMiddleware,
+  requireRoles("dispatcher", "admin"),
+  async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -493,9 +723,16 @@ app.patch("/api/incidents/:id/status", async (req, res) => {
       return res.status(404).json({ error: "Incident not found" });
     }
 
+    const dispatcherUpdate = await Message.create({
+      incident_id: id,
+      sender: normalizeIncidentMessageRole(req.user?.role) || "dispatcher",
+      message: `Dispatcher updated the incident status to ${status}.`,
+    });
+
     // Emit Socket.io event for real-time updates
     io.emit("incident-updated", incident);
     io.emit(`incident-${id}`, incident);
+    io.emit(`message-${id}`, dispatcherUpdate);
 
     await emitPushToEmergencyTeam({
       title: `Incident ${status}`,
@@ -529,7 +766,11 @@ app.patch("/api/incidents/:id/status", async (req, res) => {
   }
 });
 
-app.post("/api/push/subscribe", authMiddleware, async (req, res) => {
+app.post(
+  "/api/push/subscribe",
+  authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
+  async (req, res) => {
   try {
     const { subscription } = req.body;
     const normalized = normalizePushSubscription(
@@ -557,7 +798,11 @@ app.post("/api/push/subscribe", authMiddleware, async (req, res) => {
   }
 });
 
-app.post("/api/push/unsubscribe", authMiddleware, async (req, res) => {
+app.post(
+  "/api/push/unsubscribe",
+  authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
+  async (req, res) => {
   try {
     const endpoint = req.body?.endpoint || req.body?.subscription?.endpoint;
     if (!endpoint) {
@@ -577,17 +822,37 @@ app.post("/api/push/unsubscribe", authMiddleware, async (req, res) => {
   }
 });
 
-app.get("/api/incidents/:id/recommendation", async (req, res) => {
+app.get(
+  "/api/incidents/:id/recommendation",
+  authMiddleware,
+  requireRoles("dispatcher", "admin"),
+  async (req, res) => {
   try {
-    res.json({ recommendation: null });
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) {
+      return res.status(404).json({ error: "Incident not found" });
+    }
+
+    const recommendation = await buildIncidentRecommendation(incident);
+    res.json({ recommendation });
   } catch (err) {
     res.status(500).json({ error: "Failed to get recommendation" });
   }
 });
 
-app.get("/api/incidents/:id/timeline", async (req, res) => {
+app.get(
+  "/api/incidents/:id/timeline",
+  authMiddleware,
+  requireRoles("dispatcher", "admin"),
+  async (req, res) => {
   try {
-    res.json({ timeline: [] });
+    const incident = await Incident.findById(req.params.id);
+    if (!incident) {
+      return res.status(404).json({ error: "Incident not found" });
+    }
+
+    const timeline = await buildIncidentTimeline(incident);
+    res.json({ timeline });
   } catch (err) {
     res.status(500).json({ error: "Failed to get timeline" });
   }
@@ -596,7 +861,7 @@ app.get("/api/incidents/:id/timeline", async (req, res) => {
 /**
  * Emergency Chat Messages
  */
-app.get("/api/messages/:incidentId", async (req, res) => {
+app.get("/api/messages/:incidentId", requireIncidentAccess, async (req, res) => {
   try {
     const { incidentId } = req.params;
 
@@ -615,7 +880,7 @@ app.get("/api/messages/:incidentId", async (req, res) => {
   }
 });
 
-app.post("/api/messages", async (req, res) => {
+app.post("/api/messages", requireIncidentAccess, async (req, res) => {
   try {
     const { incident_id, sender, message } = req.body;
 
@@ -624,11 +889,28 @@ app.post("/api/messages", async (req, res) => {
       return res.status(404).json({ error: "Incident not found" });
     }
 
-    const newMessage = await Message.create({ incident_id, sender, message });
+    const requestedSender = normalizeIncidentMessageRole(sender);
+    const actorRole = req.user
+      ? normalizeIncidentMessageRole(req.user.role)
+      : "citizen";
+
+    if (!requestedSender) {
+      return res.status(400).json({ error: "Invalid message sender" });
+    }
+
+    if (actorRole !== requestedSender) {
+      return res.status(403).json({ error: "Sender does not match your role" });
+    }
+
+    const newMessage = await Message.create({
+      incident_id,
+      sender: requestedSender,
+      message,
+    });
 
     // Emit Socket.io event for real-time chat
     io.emit(`message-${incident_id}`, newMessage);
-    if (sender === "volunteer") {
+    if (requestedSender === "volunteer") {
       io.emit("volunteer-message", newMessage);
     }
 
