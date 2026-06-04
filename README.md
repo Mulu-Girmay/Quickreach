@@ -1,330 +1,170 @@
-# QuickReach - MongoDB Edition
+# QuickReach - Emergency Response System
 
-> Emergency Response System with MongoDB, JWT Authentication, and Socket.io Real-time Updates
+QuickReach is a comprehensive emergency response system designed for rapid incident reporting, intelligent dispatch, and coordinated volunteer response. Built for reliability in critical situations with offline-first capabilities and real-time communication.
 
-## 🚀 Major Update: Migrated from Supabase to MongoDB
+## 📋 Table of Contents
 
-This version of QuickReach uses **MongoDB** as the database, **JWT** for authentication, and **Socket.io** for real-time updates.
+- [Overview](#-overview)
+- [Architecture](#-architecture)
+- [Features](#-features)
+- [Tech Stack](#-tech-stack)
+- [Quick Start](#-quick-start)
+- [API Documentation](#-api-documentation)
+- [Real-time Events](#-real-time-events)
+- [Database Schema](#-database-schema)
+- [Deployment](#-deployment)
+- [Testing](#-testing)
+- [Contributing](#-contributing)
+- [License](#-license)
 
 ---
 
-## 📋 Tech Stack
+## 🎯 Overview
+
+QuickReach solves critical gaps in emergency response by enabling:
+
+| Stakeholder     | Problem Solved                            | Solution                                           |
+| --------------- | ----------------------------------------- | -------------------------------------------------- |
+| **Citizens**    | Cannot report emergencies without network | Offline-first mobile app with local SQLite storage |
+| **Dispatchers** | Delayed awareness of incidents            | Real-time dashboard with Socket.io updates         |
+| **Volunteers**  | Unaware of nearby emergencies             | Geolocation-based incident discovery               |
+| **Responders**  | Poor coordination                         | Multi-party chat and live tracking                 |
+
+### Key Differentiators
+
+✅ **Offline-First Architecture** - Create incidents without internet, sync automatically  
+✅ **Real-time Communication** - Socket.io for instant updates across all roles  
+✅ **Multi-Channel Reporting** - Mobile app, USSD, and web panic button  
+✅ **Intelligent Dispatch** - Triage scoring and proximity-based volunteer matching  
+✅ **SMS Fallback** - Africa's Talking integration for feature phones
+
+---
+
+## 🏗️ Architecture
+
+┌─────────────────────────────────────────────────────────────────┐
+│ QUICKREACH SYSTEM │
+├─────────────────────────────────────────────────────────────────┤
+│ │
+│ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ │
+│ │ Citizen │ │ Dispatcher │ │ Volunteer │ │
+│ │ Flutter App │ │ React Web │ │ React Web │ │
+│ └──────┬───────┘ └──────┬───────┘ └──────┬───────┘ │
+│ │ │ │ │
+│ └───────────────────┼───────────────────┘ │
+│ │ │
+│ ┌────────▼────────┐ │
+│ │ REST API │ │
+│ │ Socket.io │ │
+│ │ JWT Auth │ │
+│ └────────┬────────┘ │
+│ │ │
+│ ┌──────────────┼──────────────┐ │
+│ │ │ │ │
+│ ┌────▼────┐ ┌─────▼─────┐ ┌───▼────┐ │
+│ │ MongoDB │ │ Redis │ │ SMS │ │
+│ │ (Primary│ │ (Session) │ │ Gateway│ │
+│ └─────────┘ └───────────┘ └────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+
+---
+
+## ✨ Features
+
+### For Citizens 👤
+
+| Feature                   | Description                                 | Status |
+| ------------------------- | ------------------------------------------- | ------ |
+| Emergency Panic Button    | One-tap SOS activation with hold-to-confirm | ✅     |
+| Offline Incident Creation | Works without internet, syncs automatically | ✅     |
+| GPS Location Tracking     | Automatic coordinates capture               | ✅     |
+| Live Chat                 | Real-time communication with dispatch       | ✅     |
+| Video Call Support        | Face-to-face with dispatcher                | ✅     |
+| First Aid Guide           | Step-by-step emergency instructions         | ✅     |
+| USSD Integration          | Feature phone support via \*123#            | ✅     |
+
+### For Dispatchers 🎛️
+
+| Feature           | Description                        | Status |
+| ----------------- | ---------------------------------- | ------ |
+| Command Dashboard | Real-time incident overview        | ✅     |
+| Live Incident Map | Geolocation visualization          | ✅     |
+| Triage Scoring    | Automated priority assessment      | ✅     |
+| Resource Dispatch | Assign volunteers and ambulances   | ✅     |
+| Analytics Panel   | Incident trends and response times | ✅     |
+| SMS Broadcasting  | Mass notification system           | ✅     |
+
+### For Volunteers 🚑
+
+| Feature            | Description               | Status |
+| ------------------ | ------------------------- | ------ |
+| Nearby Incidents   | 10km radius discovery     | ✅     |
+| One-Tap Acceptance | Instant incident claiming | ✅     |
+| Status Management  | Online/offline toggle     | ✅     |
+| Live Navigation    | Turn-by-turn directions   | ✅     |
+| Push Notifications | Real-time alerts          | ✅     |
+
+---
+
+## 🛠️ Tech Stack
 
 ### Backend
-- **Node.js** + Express
-- **MongoDB** + Mongoose
-- **JWT** Authentication (bcryptjs)
-- **Socket.io** for real-time updates
-- **Africa's Talking** SMS API
 
-### Frontend
-- **React** + Vite
-- **TailwindCSS**
-- **Socket.io Client**
-- **Leaflet** for maps
-- **React Router**
+| Technology | Version | Purpose                 |
+| ---------- | ------- | ----------------------- |
+| Node.js    | 18+     | Runtime environment     |
+| Express.js | 4.18+   | Web framework           |
+| MongoDB    | 6.0+    | Primary database        |
+| Mongoose   | 7.0+    | ODM for MongoDB         |
+| Socket.io  | 4.5+    | Real-time communication |
+| JWT        | 9.0+    | Authentication          |
+| bcryptjs   | 2.4+    | Password hashing        |
+
+### Frontend (Web)
+
+| Technology       | Version | Purpose           |
+| ---------------- | ------- | ----------------- |
+| React            | 18.2+   | UI framework      |
+| Vite             | 4.0+    | Build tool        |
+| TailwindCSS      | 3.3+    | Styling           |
+| Leaflet          | 1.9+    | Maps              |
+| Socket.io Client | 4.5+    | Real-time updates |
+
+### Mobile (Flutter)
+
+| Technology  | Version | Purpose          |
+| ----------- | ------- | ---------------- |
+| Flutter     | 3.0+    | Mobile framework |
+| SQLite      | 2.3+    | Offline storage  |
+| BLoC        | 8.1+    | State management |
+| Workmanager | 0.5+    | Background sync  |
+
+### External Services
+
+| Service          | Purpose                   |
+| ---------------- | ------------------------- |
+| Africa's Talking | SMS & USSD gateway        |
+| MongoDB Atlas    | Cloud database (optional) |
+| Redis            | Session management        |
 
 ---
 
-## 🛠️ Setup Instructions
+## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js (v18+)
-- MongoDB (Local or Atlas)
-- Git
 
-### 1. Clone Repository
 ```bash
-git clone <your-new-repo-url>
-cd Quickreach
+# Required versions
+Node.js >= 18.0.0
+MongoDB >= 6.0.0
+Flutter >= 3.0.0 (for mobile)
+Git
+
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-repo/quickreach)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-brightgreen.svg)](https://nodejs.org)
+[![MongoDB](https://img.shields.io/badge/MongoDB-6.0%2B-brightgreen.svg)](https://mongodb.com)
+[![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-blue.svg)](https://flutter.dev)
+
+> **Enterprise-Grade Emergency Response Platform** | Real-time Incident Management | Offline-First Mobile App | Multi-Role Coordination
 ```
-
-### 2. Backend Setup
-```bash
-cd backend
-npm install
-```
-
-Create `.env` file:
-```env
-MONGODB_URI=mongodb://localhost:27017/quickreach
-JWT_SECRET=<your-jwt-secret>
-PORT=3000
-
-# SMS Configuration (Africa's Talking)
-AT_API_KEY=your_api_key
-AT_USERNAME=your_username
-AT_SENDER_ID=QuickReach
-```
-
-Start backend:
-```bash
-npm run dev
-```
-
-### 3. Frontend Setup
-```bash
-cd frontend
-npm install
-```
-
-Create `.env` file:
-```env
-VITE_API_BASE_URL=http://localhost:3000
-```
-
-Start frontend:
-```bash
-npm run dev
-```
-
----
-
-## 📚 API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-
-### Incidents
-- `GET /api/incidents` - Get all incidents
-- `POST /api/incidents/public` - Create incident (public)
-- `PATCH /api/incidents/:id/status` - Update incident status
-- `POST /api/incidents/:id/volunteer-accept` - Accept incident (volunteer)
-
-### Volunteers
-- `GET /api/volunteers/me` - Get current volunteer profile
-- `PATCH /api/volunteers/me/status` - Update volunteer status
-- `GET /api/volunteers/online` - Get online volunteers
-
-### Hospitals
-- `GET /api/hospitals` - Get all hospitals
-
-### Messages
-- `GET /api/messages/:incidentId` - Get incident messages
-- `POST /api/messages` - Send message
-
----
-
-## 🔄 Real-time Events (Socket.io)
-
-### Server Emits:
-- `new-incident` - New incident created
-- `incident-updated` - Incident status changed
-- `incident-{id}` - Specific incident update
-- `message-{incidentId}` - New message in incident
-- `volunteer-message` - Volunteer sent message
-- `hospital-updated` - Hospital data changed
-- `volunteer-updated` - Volunteer status changed
-
-### Client Listens:
-Connect to Socket.io server and listen for events:
-```javascript
-import { socket, connectSocket } from './lib/socket';
-
-connectSocket();
-socket.on('new-incident', (incident) => {
-  // Handle new incident
-});
-```
-
----
-
-## 🗄️ Database Schema
-
-### Incidents
-```javascript
-{
-  type: String,           // Medical, Fire, Police
-  lat: Number,
-  lng: Number,
-  status: String,         // Pending, Dispatched, Resolved
-  reporter_phone: String,
-  description: String,
-  session_id: String,
-  hospital_id: ObjectId,
-  triage_score: Number,
-  notified_dispatched: Boolean,
-  created_at: Date,
-  updated_at: Date
-}
-```
-
-### Volunteers
-```javascript
-{
-  name: String,
-  phone: String,
-  email: String,
-  password: String,       // Hashed with bcryptjs
-  is_online: Boolean,
-  lat: Number,
-  lng: Number,
-  last_active: Date,
-  created_at: Date
-}
-```
-
-### Hospitals
-```javascript
-{
-  name: String,
-  lat: Number,
-  lng: Number,
-  capacity: Number,
-  available_beds: Number,
-  contact: String,
-  created_at: Date
-}
-```
-
-### Messages
-```javascript
-{
-  incident_id: ObjectId,
-  sender: String,         // citizen, dispatcher, volunteer
-  message: String,
-  created_at: Date
-}
-```
-
----
-
-## 🎯 Features
-
-### For Citizens
-- 🚨 Emergency panic button
-- 📍 GPS location tracking
-- 💬 Live chat with dispatcher
-- 📹 Video call support
-- 📱 Share location with contacts
-- 🏥 First aid guide
-
-### For Volunteers
-- 🔔 Real-time incident alerts
-- 📍 Nearby incident notifications
-- ✅ Accept and respond to incidents
-- 🗺️ Live incident map
-- 📊 Online/offline status toggle
-
-### For Dispatchers
-- 🎛️ Command center dashboard
-- 🗺️ Real-time incident map
-- 🚑 Ambulance tracking
-- 💬 Multi-party chat
-- 📞 Direct call integration
-- 📊 Analytics dashboard
-
-### Additional Features
-- 📞 USSD integration (Africa's Talking)
-- 📱 SMS notifications
-- 🌍 Multi-language support
-- 🔐 JWT authentication
-- ⚡ Real-time updates (Socket.io)
-
----
-
-## 📖 Migration from Supabase
-
-This project was migrated from Supabase to MongoDB. See `MIGRATION_GUIDE.md` for details.
-
-### Key Changes:
-- ✅ Database: PostgreSQL → MongoDB
-- ✅ Auth: Supabase Auth → JWT
-- ✅ Real-time: Supabase Realtime → Socket.io
-- ✅ All Supabase dependencies removed
-
----
-
-## 🧪 Testing
-
-### Test Accounts
-Create test accounts via the registration endpoints or use the login pages.
-
-### Test Flow
-1. Start backend and frontend
-2. Open `http://localhost:5173`
-3. Click "Emergency Panic Button"
-4. Login as dispatcher at `/dispatcher-login`
-5. Accept incident and track in real-time
-
----
-
-## 📝 Environment Variables
-
-### Backend (.env)
-```env
-MONGODB_URI=mongodb://localhost:27017/quickreach
-JWT_SECRET=your-secret-key
-PORT=3000
-AT_API_KEY=your_api_key
-AT_USERNAME=your_username
-AT_SENDER_ID=QuickReach
-```
-
-### Frontend (.env)
-```env
-VITE_API_BASE_URL=http://localhost:3000
-```
-
----
-
-## 🚀 Deployment
-
-### Backend (Railway/Render/Heroku)
-1. Set environment variables
-2. Deploy from GitHub
-3. Ensure MongoDB connection string is correct
-
-### Frontend (Vercel/Netlify)
-1. Set `VITE_API_BASE_URL` to your backend URL
-2. Deploy from GitHub
-3. Build command: `npm run build`
-4. Output directory: `dist`
-
-### MongoDB (Atlas)
-1. Create free cluster at mongodb.com/cloud/atlas
-2. Whitelist IP addresses
-3. Get connection string
-4. Update `MONGODB_URI` in backend
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-MIT License - See LICENSE file for details
-
----
-
-## 👥 Authors
-
-- **Mulu Girmay** - Initial work & MongoDB migration
-
----
-
-## 🙏 Acknowledgments
-
-- Africa's Talking for SMS/USSD API
-- MongoDB for database
-- Socket.io for real-time capabilities
-- React & Vite for frontend framework
-
----
-
-## 📞 Support
-
-For issues or questions, please open an issue on GitHub.
-
----
-
-**Built with ❤️ for emergency response in Ethiopia**
