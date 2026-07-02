@@ -164,7 +164,7 @@ class _Header extends StatelessWidget {
         ),
         _Pill(
           label: state.connected ? "ONLINE" : "OFFLINE",
-          color: state.connected ? Colors.greenAccent : Colors.orangeAccent,
+          color: state.connected ? Colors.redAccent : Colors.white70,
         ),
       ],
     );
@@ -182,11 +182,11 @@ class _SignalBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF7C2D12).withOpacity(0.35),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.orange.withOpacity(0.35)),
+        border: Border.all(color: Colors.red.withOpacity(0.35)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.wifi_off, color: Colors.orangeAccent),
+          const Icon(Icons.wifi_off, color: Colors.redAccent),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -213,14 +213,14 @@ class _UssdHintBanner extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
+          color: const Color(0xFF111827),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.blueAccent.withOpacity(0.25)),
+          border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
         ),
         child: const Text(
           "No signal detected. You can also dial *123# to report via USSD.",
           style: TextStyle(
-            color: Colors.blueAccent,
+            color: Colors.redAccent,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -309,14 +309,12 @@ class _PanicPanel extends StatelessWidget {
             children: [
               _Pill(
                 label: state.locationReady ? "GPS READY" : "GPS NEEDED",
-                color: state.locationReady
-                    ? Colors.greenAccent
-                    : Colors.orangeAccent,
+                color: state.locationReady ? Colors.redAccent : Colors.white70,
               ),
               const SizedBox(width: 10),
               _Pill(
                 label: state.syncing ? "SYNCING" : "LOCAL SAVE",
-                color: state.syncing ? Colors.blueAccent : Colors.white70,
+                color: state.syncing ? Colors.redAccent : Colors.white70,
               ),
             ],
           ),
@@ -404,7 +402,7 @@ class _ActiveIncidentCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               if (incident.offlineCreated)
-                _Pill(label: "OFFLINE CREATED", color: Colors.orangeAccent),
+                _Pill(label: "OFFLINE CREATED", color: Colors.redAccent),
             ],
           ),
           const SizedBox(height: 12),
@@ -442,7 +440,7 @@ class _ActiveIncidentCard extends StatelessWidget {
                       : incident.status,
                   textAlign: TextAlign.right,
                   style: const TextStyle(
-                    color: Colors.greenAccent,
+                    color: Colors.redAccent,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -509,10 +507,10 @@ class _QueueTile extends StatelessWidget {
     final isSent = incident.syncStatus == "sent";
     final isCancelled = incident.syncStatus == "cancelled";
     final color = isSent
-        ? Colors.greenAccent
+        ? Colors.redAccent
         : isCancelled
-        ? Colors.orangeAccent
-        : Colors.blueAccent;
+        ? Colors.redAccent
+        : Colors.white70;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -643,7 +641,7 @@ class _CachedTile extends StatelessWidget {
                     child: Text(
                       "ETA: ${incident.etaMinutes} mins",
                       style: const TextStyle(
-                        color: Colors.greenAccent,
+                        color: Colors.redAccent,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -652,7 +650,7 @@ class _CachedTile extends StatelessWidget {
             ),
           ),
           if (incident.offlineCreated)
-            _Pill(label: "Delayed report", color: Colors.orangeAccent),
+            _Pill(label: "Delayed report", color: Colors.redAccent),
         ],
       ),
     );

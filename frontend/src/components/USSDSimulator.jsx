@@ -120,7 +120,7 @@ export const USSDSimulator = () => {
           </div>
 
           {/* Screen */}
-          <div className="bg-[#94a3b8] aspect-[3/4] rounded-lg mb-6 p-4 flex flex-col items-center justify-center relative overflow-hidden">
+          <div className="bg-slate-400 aspect-[3/4] rounded-lg mb-6 p-4 flex flex-col items-center justify-center relative overflow-hidden">
             {ussdSession === null ? (
               <div className="text-3xl font-mono text-slate-800 tracking-tighter">
                 {input || "0"}
@@ -201,7 +201,7 @@ export const USSDSimulator = () => {
               </div>
             ) : (
               <div className="w-full text-slate-900 font-mono text-sm text-center">
-                <p className="text-green-800 font-bold mb-2">Request Sent!</p>
+                <p className="text-red-800 font-bold mb-2">Request Sent!</p>
                 <div className="text-[10px] space-y-1">
                   <p>
                     Type: <span className="font-bold">{emergencyType}</span>
@@ -219,9 +219,9 @@ export const USSDSimulator = () => {
             {/* SMS Notification UI Overlay */}
             {sms && (
               <div className="absolute top-0 left-0 w-full p-2 animate-in slide-in-from-top duration-500">
-                <div className="bg-white rounded p-2 shadow-lg border-l-4 border-blue-500">
+                <div className="bg-white rounded p-2 shadow-lg border-l-4 border-red-500">
                   <div className="flex items-center gap-1 mb-1">
-                    <MessageSquare className="w-3 h-3 text-blue-500" />
+                    <MessageSquare className="w-3 h-3 text-red-500" />
                     <span className="text-[8px] font-bold text-slate-500 uppercase">
                       New Message
                     </span>
@@ -248,7 +248,7 @@ export const USSDSimulator = () => {
             <div className="col-span-1"></div>
             <button
               onClick={handleCall}
-              className="bg-green-600 hover:bg-green-500 text-white py-2 rounded-full flex justify-center items-center shadow-lg active:scale-95 transition-transform"
+              className="bg-red-600 hover:bg-red-500 text-white py-2 rounded-full flex justify-center items-center shadow-lg active:scale-95 transition-transform"
             >
               <PhoneCall className="w-5 h-5" />
             </button>

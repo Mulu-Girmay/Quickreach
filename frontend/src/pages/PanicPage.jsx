@@ -93,7 +93,8 @@ export const PanicPage = () => {
     if (!activeIncident?.id) return;
 
     const incidentId = activeIncident.id;
-    const incidentToken = incidentAccessToken || activeIncident?.id || activeIncident?._id;
+    const incidentToken =
+      incidentAccessToken || activeIncident?.id || activeIncident?._id;
     const socket = connectSocket();
 
     const addMessage = (text) => {
@@ -341,12 +342,12 @@ export const PanicPage = () => {
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
             <h2 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
-              <Navigation className="h-5 w-5 text-blue-500" />
+              <Navigation className="h-5 w-5 text-red-500" />
               Current Status
             </h2>
             <div className="flex items-center gap-3 mb-2">
               <div
-                className={`h-3 w-3 rounded-full ${location ? "bg-green-500 animate-pulse" : "bg-orange-500 animate-bounce"}`}
+                className={`h-3 w-3 rounded-full ${location ? "bg-red-500 animate-pulse" : "bg-slate-600 animate-bounce"}`}
               />
               <span className="text-sm font-medium text-slate-600">
                 {location
@@ -364,10 +365,10 @@ export const PanicPage = () => {
               <div
                 className={`mt-4 flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold ${
                   incidentStatus === "Resolved"
-                    ? "bg-green-600"
+                    ? "bg-slate-700"
                     : incidentStatus === "Dispatched"
-                      ? "bg-blue-600"
-                      : "bg-yellow-500"
+                      ? "bg-red-600"
+                      : "bg-red-900"
                 }`}
               >
                 <div
@@ -435,12 +436,12 @@ export const PanicPage = () => {
               </span>
             </button>
           ) : incidentStatus === "Resolved" ? (
-            <div className="bg-green-50 border-2 border-green-500 rounded-2xl p-8 text-center animate-in fade-in duration-500">
-              <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
-              <h3 className="text-2xl font-bold text-green-800 mb-2">
+            <div className="bg-red-50 border-2 border-red-500 rounded-2xl p-8 text-center animate-in fade-in duration-500">
+              <CheckCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <h3 className="text-2xl font-bold text-red-800 mb-2">
                 Incident Resolved
               </h3>
-              <p className="text-green-600 mb-6">
+              <p className="text-red-600 mb-6">
                 The dispatcher has marked this incident as closed. Stay safe!
               </p>
               <button
@@ -454,30 +455,28 @@ export const PanicPage = () => {
             <div
               className={`rounded-2xl p-8 text-center animate-in fade-in zoom-in duration-300 border-2 ${
                 incidentStatus === "Dispatched"
-                  ? "bg-blue-50 border-blue-500"
-                  : "bg-yellow-50 border-yellow-400"
+                  ? "bg-red-50 border-red-500"
+                  : "bg-red-100 border-red-400"
               }`}
             >
               <div
                 className={`h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4 ${
-                  incidentStatus === "Dispatched"
-                    ? "bg-blue-100"
-                    : "bg-yellow-100"
+                  incidentStatus === "Dispatched" ? "bg-red-100" : "bg-red-50"
                 }`}
               >
                 <ShieldAlert
-                  className={`h-8 w-8 ${incidentStatus === "Dispatched" ? "text-blue-600" : "text-yellow-600"}`}
+                  className={`h-8 w-8 ${incidentStatus === "Dispatched" ? "text-red-600" : "text-red-700"}`}
                 />
               </div>
               <h3
-                className={`text-2xl font-bold mb-2 ${incidentStatus === "Dispatched" ? "text-blue-800" : "text-yellow-800"}`}
+                className={`text-2xl font-bold mb-2 ${incidentStatus === "Dispatched" ? "text-red-800" : "text-red-900"}`}
               >
                 {incidentStatus === "Dispatched"
                   ? "Help is on the way!"
                   : "Alert Sent - Waiting for Dispatcher"}
               </h3>
               {distance && (
-                <div className="my-4 p-4 bg-white rounded-xl border border-blue-100 shadow-sm">
+                <div className="my-4 p-4 bg-white rounded-xl border border-red-100 shadow-sm">
                   <div className="text-3xl font-black text-slate-800">
                     {eta}{" "}
                     <span className="text-sm font-medium text-slate-500">
@@ -493,7 +492,7 @@ export const PanicPage = () => {
                 </div>
               )}
               <p
-                className={`mb-6 text-sm ${incidentStatus === "Dispatched" ? "text-blue-600" : "text-yellow-700"}`}
+                className={`mb-6 text-sm ${incidentStatus === "Dispatched" ? "text-red-600" : "text-red-700"}`}
               >
                 {incidentStatus === "Dispatched"
                   ? "Dispatch has confirmed your location. A unit is en route."
@@ -531,11 +530,11 @@ export const PanicPage = () => {
             )}
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex items-start gap-3">
-            <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
+          <div className="bg-red-50 border border-red-100 p-4 rounded-xl flex items-start gap-3">
+            <Info className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
             <div>
-              <h4 className="font-bold text-blue-800 text-sm">Vital Info</h4>
-              <p className="text-xs text-blue-600 leading-relaxed mt-1">
+              <h4 className="font-bold text-red-800 text-sm">Vital Info</h4>
+              <p className="text-xs text-red-600 leading-relaxed mt-1">
                 Stay calm. If possible, remain in your current location.
                 Dispatchers may attempt to call you for more details.
               </p>
@@ -555,14 +554,14 @@ export const PanicPage = () => {
                     ? "Send SOS first to start incident video room"
                     : "Start live video call"
                 }
-                className="mt-3 w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400/60 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                className="mt-3 w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400/60 disabled:cursor-not-allowed text-white font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
               >
                 <Video className="w-4 h-4" />
                 Start Live Video Call
               </button>
               <a
                 href="/first-aid"
-                className="mt-2 w-full bg-white border-2 border-green-500 text-green-600 hover:bg-green-50 font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
+                className="mt-2 w-full bg-white border-2 border-red-500 text-red-600 hover:bg-red-50 font-bold py-2 rounded-lg text-sm flex items-center justify-center gap-2 transition-colors"
               >
                 <Heart className="w-4 h-4" />
                 First Aid Guide

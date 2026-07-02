@@ -412,7 +412,7 @@ export const DispatcherPage = () => {
               className="bg-slate-800 p-1.5 rounded-lg border border-white/5 hover:bg-slate-700 transition-colors group"
               title="Launch IVR Simulator"
             >
-              <Languages className="w-5 h-5 text-slate-400 group-hover:text-blue-400" />
+              <Languages className="w-5 h-5 text-slate-400 group-hover:text-red-400" />
             </button>
 
             {/* Sound toggle — glows red + pulses when an SOS arrived while muted */}
@@ -425,7 +425,7 @@ export const DispatcherPage = () => {
                 className={cn(
                   "relative bg-slate-800 p-1.5 rounded-lg border hover:bg-slate-700 transition-colors group",
                   isSoundEnabled
-                    ? "border-green-500/30"
+                    ? "border-red-500/30"
                     : hasUnacknowledgedSOS
                       ? "border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]"
                       : "border-red-500/30",
@@ -439,7 +439,7 @@ export const DispatcherPage = () => {
                 }
               >
                 {isSoundEnabled ? (
-                  <Volume2 className="w-5 h-5 text-green-500" />
+                  <Volume2 className="w-5 h-5 text-red-500" />
                 ) : (
                   <VolumeX
                     className={cn(
@@ -474,7 +474,7 @@ export const DispatcherPage = () => {
           )}
           <Link
             to="/analytics"
-            className="text-[10px] text-blue-400 hover:text-blue-300 font-black uppercase tracking-widest"
+            className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase tracking-widest"
           >
             Open Analytics Dashboard
           </Link>
@@ -523,8 +523,8 @@ export const DispatcherPage = () => {
                       className={cn(
                         "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border",
                         incident.type === "Fire"
-                          ? "bg-orange-500/10 border-orange-500/20 text-orange-500"
-                          : "bg-blue-500/10 border-blue-500/20 text-blue-500",
+                          ? "bg-red-500/10 border-red-500/20 text-red-500"
+                          : "bg-red-500/10 border-red-500/20 text-red-500",
                         selectedIncidentId === incidentId &&
                           "bg-slate-900 text-white border-slate-900",
                       )}
@@ -541,7 +541,7 @@ export const DispatcherPage = () => {
                   </div>
 
                   {incident.offline_created && (
-                    <div className="mb-3 inline-flex items-center rounded-full border border-orange-400/30 bg-orange-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-orange-300">
+                    <div className="mb-3 inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-red-300">
                       Delayed report
                     </div>
                   )}
@@ -565,14 +565,14 @@ export const DispatcherPage = () => {
                         "text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter",
                         incident.status === "Pending"
                           ? "text-red-600 bg-red-600/10 animate-pulse"
-                          : "text-green-600 bg-green-600/10",
+                          : "text-red-600 bg-red-600/10",
                       )}
                     >
                       {incident.status}
                     </div>
                     <div className="flex gap-2">
-                      <div className="text-[9px] font-black uppercase tracking-widest text-cyan-300 flex items-center gap-1 bg-slate-800/90 border border-cyan-400/30 px-2 py-1 rounded-lg">
-                        <MapPin className="w-3 h-3 text-cyan-300" />
+                      <div className="text-[9px] font-black uppercase tracking-widest text-red-300 flex items-center gap-1 bg-slate-800/90 border border-red-400/30 px-2 py-1 rounded-lg">
+                        <MapPin className="w-3 h-3 text-red-300" />
                         {Number.isFinite(Number(incident.lat)) &&
                         Number.isFinite(Number(incident.lng))
                           ? getTrackedLocationName(
@@ -601,7 +601,7 @@ export const DispatcherPage = () => {
                         "mt-3 text-[9px] font-black uppercase tracking-widest flex items-center gap-1 px-2 py-1 rounded-lg border w-fit",
                         full
                           ? "text-red-300 bg-red-900/30 border-red-400/30"
-                          : "text-emerald-300 bg-emerald-900/30 border-emerald-400/30",
+                          : "text-red-300 bg-red-900/30 border-red-400/30",
                       )}
                       title={`${hosp.name} (${currentCap}/${maxCap})`}
                     >
@@ -645,7 +645,7 @@ export const DispatcherPage = () => {
                             className={cn(
                               "w-4 h-4",
                               selectedIncidentId === incidentId
-                                ? "text-green-600"
+                                ? "text-red-600"
                                 : "text-slate-600",
                             )}
                           />
@@ -700,7 +700,7 @@ export const DispatcherPage = () => {
               className={cn(
                 "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md w-48 text-left flex justify-between items-center group",
                 showHeatmap
-                  ? "bg-orange-600 text-white border-orange-400"
+                  ? "bg-red-600 text-white border-red-400"
                   : "bg-slate-900/80 text-slate-400 border-white/5",
               )}
             >
@@ -718,7 +718,7 @@ export const DispatcherPage = () => {
               className={cn(
                 "px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-2xl backdrop-blur-md w-48 text-left flex justify-between items-center",
                 showVolunteers
-                  ? "bg-blue-600 text-white border-blue-400"
+                  ? "bg-red-600 text-white border-red-400"
                   : "bg-slate-900/80 text-slate-400 border-white/5",
               )}
             >
@@ -755,14 +755,14 @@ export const DispatcherPage = () => {
                       <span className="text-2xl font-black italic tracking-tighter text-white">
                         READY
                       </span>
-                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                      <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                     </div>
                   </div>
                   <div className="text-right">
                     <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mb-1">
                       Signal Mode
                     </p>
-                    <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                    <span className="text-[10px] font-black text-red-500 uppercase tracking-widest bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">
                       Satellite Mesh
                     </span>
                   </div>
@@ -776,7 +776,7 @@ export const DispatcherPage = () => {
                     <span className="text-white">12%</span>
                   </div>
                   <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-600 w-[12%]" />
+                    <div className="h-full bg-red-600 w-[12%]" />
                   </div>
                 </div>
               </div>
@@ -815,7 +815,7 @@ export const DispatcherPage = () => {
                     {
                       label: "Status",
                       val: selectedIncident.status,
-                      color: "text-green-500",
+                      color: "text-red-500",
                     },
                     {
                       label: "Telemetry",
@@ -842,14 +842,14 @@ export const DispatcherPage = () => {
                   ))}
                 </div>
                 {selectedIncident.sla_due_at && (
-                  <p className="text-xs text-amber-400 mt-3 font-bold">
+                  <p className="text-xs text-red-400 mt-3 font-bold">
                     SLA Due:{" "}
                     {new Date(selectedIncident.sla_due_at).toLocaleTimeString()}
                   </p>
                 )}
 
                 {selectedIncident.offline_created && (
-                  <p className="mt-3 inline-flex items-center rounded-full border border-orange-400/30 bg-orange-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-orange-300">
+                  <p className="mt-3 inline-flex items-center rounded-full border border-red-400/30 bg-red-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-red-300">
                     Delayed report
                   </p>
                 )}
@@ -895,7 +895,7 @@ export const DispatcherPage = () => {
                   )}
 
                   <button
-                    className="px-3 py-2 bg-blue-600/20 text-blue-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-blue-500/20 hover:bg-blue-600/30 transition-all"
+                    className="px-3 py-2 bg-red-600/20 text-red-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-red-500/20 hover:bg-red-600/30 transition-all"
                     onClick={() => setIsChatOpen(true)}
                     title="Open incident chat"
                   >
@@ -904,7 +904,7 @@ export const DispatcherPage = () => {
                   </button>
 
                   <button
-                    className="px-3 py-2 bg-emerald-600/20 text-emerald-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-emerald-500/20 hover:bg-emerald-600/30 transition-all"
+                    className="px-3 py-2 bg-red-600/20 text-red-400 rounded-2xl font-black text-xs flex items-center gap-2 border border-red-500/20 hover:bg-red-600/30 transition-all"
                     onClick={() => setIsVideoCallOpen(true)}
                     title="Start live video call for this incident"
                   >
@@ -927,16 +927,14 @@ export const DispatcherPage = () => {
                           className={cn(
                             "col-span-2 px-3 py-2 rounded-2xl border text-center",
                             hasUnitArrived
-                              ? "bg-green-500/15 border-green-500/30"
-                              : "bg-blue-500/10 border-blue-500/30",
+                              ? "bg-red-500/15 border-red-500/30"
+                              : "bg-red-500/10 border-red-500/30",
                           )}
                         >
                           <p
                             className={cn(
                               "text-[10px] font-black uppercase tracking-widest",
-                              hasUnitArrived
-                                ? "text-green-400"
-                                : "text-blue-400",
+                              hasUnitArrived ? "text-red-400" : "text-red-400",
                             )}
                           >
                             {hasUnitArrived

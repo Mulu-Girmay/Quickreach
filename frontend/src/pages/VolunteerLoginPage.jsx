@@ -45,8 +45,8 @@ export const VolunteerLoginPage = () => {
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
       <div className="bg-slate-900 border border-white/5 p-8 rounded-3xl max-w-md w-full text-center">
-        <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
-          <Shield className="w-8 h-8 text-blue-500" />
+        <div className="w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+          <Shield className="w-8 h-8 text-red-500" />
         </div>
         <h1 className="text-2xl font-bold text-white mb-2">Volunteer Access</h1>
         <p className="text-slate-400 mb-8">
@@ -63,7 +63,7 @@ export const VolunteerLoginPage = () => {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-red-500 outline-none transition-all"
                 placeholder="Your name"
               />
             </div>
@@ -76,7 +76,7 @@ export const VolunteerLoginPage = () => {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-red-500 outline-none transition-all"
               placeholder="Email"
             />
           </div>
@@ -88,7 +88,7 @@ export const VolunteerLoginPage = () => {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+              className="w-full bg-slate-800 border-slate-700 text-white rounded-xl p-3 focus:ring-2 focus:ring-red-500 outline-none transition-all"
               placeholder="Password"
             />
           </div>
@@ -96,7 +96,7 @@ export const VolunteerLoginPage = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all mt-4"
+            className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all mt-4"
           >
             {loading
               ? "Connecting..."

@@ -1,8 +1,12 @@
-import React from 'react';
-import { X, PhoneOff, Video } from 'lucide-react';
+import React from "react";
+import { X, PhoneOff, Video } from "lucide-react";
 
-export const VideoSOSModal = ({ onClose, roomName, displayName = 'QuickReach User' }) => {
-  const safeRoom = String(roomName || '').trim();
+export const VideoSOSModal = ({
+  onClose,
+  roomName,
+  displayName = "QuickReach User",
+}) => {
+  const safeRoom = String(roomName || "").trim();
   const jitsiRoom = encodeURIComponent(safeRoom);
   const jitsiName = encodeURIComponent(displayName);
   const src = `https://meet.jit.si/${jitsiRoom}#userInfo.displayName=%22${jitsiName}%22&config.prejoinPageEnabled=true&config.startWithAudioMuted=false&config.startWithVideoMuted=false`;
@@ -12,9 +16,11 @@ export const VideoSOSModal = ({ onClose, roomName, displayName = 'QuickReach Use
       <div className="relative w-full h-full">
         <div className="absolute inset-x-0 top-0 p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-center z-10">
           <div>
-            <p className="text-white font-black tracking-tight">LIVE VIDEO CALL</p>
+            <p className="text-white font-black tracking-tight">
+              LIVE VIDEO CALL
+            </p>
             <p className="text-xs text-white/70 font-mono uppercase tracking-wider">
-              Room: {safeRoom || 'No Active Room'}
+              Room: {safeRoom || "No Active Room"}
             </p>
           </div>
           <button
@@ -37,8 +43,12 @@ export const VideoSOSModal = ({ onClose, roomName, displayName = 'QuickReach Use
           <div className="w-full h-full flex items-center justify-center">
             <div className="bg-slate-900/80 border border-white/10 rounded-2xl p-6 text-center">
               <Video className="w-8 h-8 text-white mx-auto mb-3" />
-              <p className="text-white font-bold">No active incident room yet.</p>
-              <p className="text-xs text-slate-400 mt-1">Start or select an incident to launch video.</p>
+              <p className="text-white font-bold">
+                No active incident room yet.
+              </p>
+              <p className="text-xs text-slate-400 mt-1">
+                Start or select an incident to launch video.
+              </p>
             </div>
           </div>
         )}

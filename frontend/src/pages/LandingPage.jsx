@@ -97,7 +97,7 @@ export const LandingPage = () => {
       >
         <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
           <div className="absolute top-10 left-10 w-64 h-64 bg-red-500 rounded-full blur-[100px]" />
-          <div className="absolute bottom-10 right-10 w-64 h-64 bg-blue-500 rounded-full blur-[100px]" />
+          <div className="absolute bottom-10 right-10 w-64 h-64 bg-red-700 rounded-full blur-[100px]" />
         </div>
 
         <nav className="relative z-10 flex items-center justify-between max-w-6xl mx-auto mb-10 md:mb-16">
@@ -126,7 +126,7 @@ export const LandingPage = () => {
               className={cn(
                 "transition-colors hover:text-white",
                 activeTab === "about"
-                  ? "text-white underline decoration-blue-500 decoration-4 underline-offset-8"
+                  ? "text-white underline decoration-red-500 decoration-4 underline-offset-8"
                   : "",
               )}
             >
@@ -144,7 +144,7 @@ export const LandingPage = () => {
 
             <h1 className="text-5xl md:text-7xl font-black tracking-tight leading-tight">
               Emergency Response <br className="hidden md:block" />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-400">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-red-600">
                 Reimagined.
               </span>
             </h1>
@@ -180,7 +180,7 @@ export const LandingPage = () => {
               to="/dispatcher-login"
               className="group bg-white p-8 rounded-3xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all hover:-translate-y-1"
             >
-              <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mb-6 text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mb-6 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
                 <LayoutDashboard className="w-7 h-7" />
               </div>
               <h3 className="text-xl font-bold mb-2 text-slate-900">
@@ -190,7 +190,7 @@ export const LandingPage = () => {
                 Command center for managing active incidents, tracking
                 ambulances, and coordinating response teams.
               </p>
-              <div className="flex items-center text-blue-600 font-bold text-sm group-hover:gap-2 transition-all">
+              <div className="flex items-center text-red-600 font-bold text-sm group-hover:gap-2 transition-all">
                 <span>Access Dashboard</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </div>
@@ -201,7 +201,7 @@ export const LandingPage = () => {
               to="/volunteer-login"
               className="group bg-white p-8 rounded-3xl shadow-xl border border-slate-100 hover:shadow-2xl transition-all hover:-translate-y-1"
             >
-              <div className="w-14 h-14 bg-green-50 rounded-2xl flex items-center justify-center mb-6 text-green-600 group-hover:bg-green-600 group-hover:text-white transition-colors">
+              <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mb-6 text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
                 <HeartHandshake className="w-7 h-7" />
               </div>
               <h3 className="text-xl font-bold mb-2 text-slate-900">
@@ -211,7 +211,7 @@ export const LandingPage = () => {
                 Join the community response network. Receive alerts for nearby
                 emergencies and provide first aid.
               </p>
-              <div className="flex items-center text-green-600 font-bold text-sm group-hover:gap-2 transition-all">
+              <div className="flex items-center text-red-600 font-bold text-sm group-hover:gap-2 transition-all">
                 <span>Join Response</span>
                 <ArrowRight className="w-4 h-4 ml-1" />
               </div>
@@ -265,20 +265,20 @@ export const LandingPage = () => {
             className="py-24 bg-slate-900 text-white relative overflow-hidden"
           >
             <div className="absolute inset-0 opacity-20">
-              <div className="absolute top-0 -left-10 w-96 h-96 bg-blue-600 rounded-full blur-[128px]" />
+              <div className="absolute top-0 -left-10 w-96 h-96 bg-red-600 rounded-full blur-[128px]" />
               <div className="absolute bottom-0 -right-10 w-96 h-96 bg-red-600 rounded-full blur-[128px]" />
             </div>
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 relative z-10 flex flex-col md:flex-row items-center gap-16">
               <div className="md:w-1/2">
                 <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-xs font-bold uppercase tracking-widest mb-6">
-                  <Activity className="w-4 h-4 text-blue-500" />
+                  <Activity className="w-4 h-4 text-red-500" />
                   Our Mission
                 </div>
                 <h2 className="text-4xl md:text-5xl font-black mb-6 leading-tight">
                   Bridging the gap between{" "}
-                  <span className="text-blue-500">Chaos</span> and{" "}
-                  <span className="text-green-500">Care</span>.
+                  <span className="text-red-400">Chaos</span> and{" "}
+                  <span className="text-red-300">Care</span>.
                 </h2>
                 <p className="text-slate-400 text-lg leading-relaxed mb-8">
                   QuickReach isn't just an app; it's a lifeline. We connect
@@ -298,7 +298,7 @@ export const LandingPage = () => {
                       Wait Time
                     </span>
                   </div>
-                  <div className="flex flex-col gap-1 border-l-4 border-blue-500 pl-4">
+                  <div className="flex flex-col gap-1 border-l-4 border-red-700 pl-4">
                     <span className="text-2xl font-black">100%</span>
                     <span className="text-xs text-slate-500 font-bold uppercase tracking-widest">
                       Digital Triage
@@ -316,21 +316,20 @@ export const LandingPage = () => {
                   </p>
                 </div>
                 <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                  <HeartHandshake className="w-10 h-10 text-green-500 mb-4" />
+                  <HeartHandshake className="w-10 h-10 text-red-400 mb-4" />
                   <h4 className="text-lg font-bold mb-2">Volunteer Net</h4>
                   <p className="text-slate-400 text-sm">
                     Crowdsourced first aid from trained locals nearby.
                   </p>
                 </div>
                 <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 transform translate-y-8">
-                  {/* <Stethoscope className="w-10 h-10 text-purple-500 mb-4" /> */}
                   <h4 className="text-lg font-bold mb-2">Hospital Sync</h4>
                   <p className="text-slate-400 text-sm">
                     Real-time bed availability and patient intake data.
                   </p>
                 </div>
                 <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                  <ShieldAlert className="w-10 h-10 text-orange-500 mb-4" />
+                  <ShieldAlert className="w-10 h-10 text-red-500 mb-4" />
                   <h4 className="text-lg font-bold mb-2">Crisis Mode</h4>
                   <p className="text-slate-400 text-sm">
                     Instant multi-agency alerts for mass casualty events.
@@ -355,7 +354,7 @@ export const LandingPage = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-12 relative">
                 {/* Connecting Line (Desktop) */}
-                <div className="hidden md:block absolute top-12 left-0 w-full h-1 bg-gradient-to-r from-red-100 via-blue-100 to-green-100 z-0" />
+                <div className="hidden md:block absolute top-12 left-0 w-full h-1 bg-gradient-to-r from-red-100 via-red-300 to-red-500 z-0" />
 
                 {/* Step 1 */}
                 <div className="relative z-10 flex flex-col items-center text-center">
@@ -373,8 +372,8 @@ export const LandingPage = () => {
 
                 {/* Step 2 */}
                 <div className="relative z-10 flex flex-col items-center text-center">
-                  <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center border-8 border-white shadow-xl mb-8">
-                    <span className="text-4xl font-black text-blue-600">2</span>
+                  <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center border-8 border-white shadow-xl mb-8">
+                    <span className="text-4xl font-black text-red-600">2</span>
                   </div>
                   <h3 className="text-xl font-bold text-slate-900 mb-3">
                     We Dispatch & Alert
@@ -387,10 +386,8 @@ export const LandingPage = () => {
 
                 {/* Step 3 */}
                 <div className="relative z-10 flex flex-col items-center text-center">
-                  <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center border-8 border-white shadow-xl mb-8">
-                    <span className="text-4xl font-black text-green-600">
-                      3
-                    </span>
+                  <div className="w-24 h-24 bg-red-50 rounded-full flex items-center justify-center border-8 border-white shadow-xl mb-8">
+                    <span className="text-4xl font-black text-red-600">3</span>
                   </div>
                   <h3 className="text-xl font-bold text-slate-900 mb-3">
                     Help Arrives

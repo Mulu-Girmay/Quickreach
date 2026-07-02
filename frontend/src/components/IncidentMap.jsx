@@ -79,7 +79,7 @@ export const IncidentMap = ({
               center={[inc.lat, inc.lng]}
               radius={200}
               pathOptions={{
-                fillColor: inc.type === "Fire" ? "orange" : "red",
+                fillColor: inc.type === "Fire" ? "#991b1b" : "#dc2626",
                 color: "transparent",
                 fillOpacity: 0.4,
               }}
@@ -133,7 +133,7 @@ export const IncidentMap = ({
                 icon={VolunteerIcon}
               >
                 <Popup>
-                  <div className="font-black text-blue-600 uppercase text-[10px] tracking-widest mb-1">
+                  <div className="font-black text-red-600 uppercase text-[10px] tracking-widest mb-1">
                     Civilian Responder
                   </div>
                   <div className="font-bold">{v.name}</div>

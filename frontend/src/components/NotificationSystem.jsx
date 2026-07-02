@@ -173,13 +173,13 @@ export const NotificationProvider = ({ children }) => {
             <button
               onClick={enablePushAlerts}
               disabled={isPushLoading}
-              className="bg-blue-600 text-white px-4 py-3 rounded-2xl shadow-lg shadow-blue-900/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-blue-700 transition-all border border-blue-500/30 disabled:opacity-60"
+              className="bg-red-600 text-white px-4 py-3 rounded-2xl shadow-lg shadow-red-900/30 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-red-700 transition-all border border-red-500/30 disabled:opacity-60"
             >
               <BellRing className="w-3.5 h-3.5" />
               {isPushLoading ? "Enabling..." : "Enable Emergency Push Alerts"}
             </button>
             {pushMessage && (
-              <p className="mt-2 text-[10px] font-medium text-blue-100 bg-blue-950/90 border border-blue-800 rounded-xl px-3 py-2 max-w-80">
+              <p className="mt-2 text-[10px] font-medium text-red-100 bg-slate-950/90 border border-red-800 rounded-xl px-3 py-2 max-w-80">
                 {pushMessage}
               </p>
             )}
@@ -191,7 +191,7 @@ export const NotificationProvider = ({ children }) => {
         isPushEnabled &&
         pushMessage && (
           <div className="fixed top-40 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-500">
-            <p className="text-[10px] font-black uppercase tracking-widest text-green-200 bg-green-950/90 border border-green-800 rounded-xl px-3 py-2 shadow-lg shadow-green-900/20 max-w-80">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-200 bg-slate-950/90 border border-red-800 rounded-xl px-3 py-2 shadow-lg shadow-red-900/20 max-w-80">
               {pushMessage}
             </p>
           </div>
@@ -207,7 +207,7 @@ export const NotificationProvider = ({ children }) => {
                 n.type === "error"
                   ? "bg-red-900 border-red-800 text-white"
                   : n.type === "success"
-                    ? "bg-green-900 border-green-800 text-white"
+                    ? "bg-slate-900 border-red-800 text-white"
                     : "bg-slate-900 border-slate-800 text-white"
               }
             `}
@@ -219,8 +219,8 @@ export const NotificationProvider = ({ children }) => {
                 n.type === "error"
                   ? "bg-red-600"
                   : n.type === "success"
-                    ? "bg-green-600"
-                    : "bg-blue-600"
+                    ? "bg-red-600"
+                    : "bg-red-600"
               }
             `}
             >

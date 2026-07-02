@@ -4,32 +4,44 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(2, 6, 23, 0.85);
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(220, 38, 38, 0.35);
   border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(220, 38, 38, 0.55);
 }
 
 /* Animations */
 @keyframes pulse-red {
-  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-  70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+  0% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
 }
 
 .animate-pulse-red {
   animation: pulse-red 2s infinite;
 }
 @keyframes slide-in-right {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 .animate-in.slide-in-from-right {
@@ -37,8 +49,14 @@
 }
 
 @keyframes zoom-in {
-  from { transform: scale(0.95); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 .animate-in.zoom-in {
@@ -48,13 +66,17 @@
 /* Shared emergency look across pages */
 .emergency-shell {
   background:
-    radial-gradient(circle at 10% 0%, rgba(239, 68, 68, 0.08), transparent 30%),
-    radial-gradient(circle at 90% 100%, rgba(59, 130, 246, 0.08), transparent 30%);
+    radial-gradient(circle at 10% 0%, rgba(220, 38, 38, 0.12), transparent 30%),
+    radial-gradient(circle at 90% 100%, rgba(2, 6, 23, 0.9), transparent 30%);
 }
 
 .emergency-shell-light {
   background:
-    radial-gradient(circle at 5% 0%, rgba(239, 68, 68, 0.08), transparent 28%),
-    radial-gradient(circle at 100% 100%, rgba(2, 132, 199, 0.08), transparent 32%),
-    #f8fafc;
+    radial-gradient(circle at 5% 0%, rgba(220, 38, 38, 0.08), transparent 28%),
+    radial-gradient(
+      circle at 100% 100%,
+      rgba(15, 23, 42, 0.2),
+      transparent 32%
+    ),
+    #0f172a;
 }

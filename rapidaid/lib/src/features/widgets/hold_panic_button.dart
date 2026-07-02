@@ -84,7 +84,7 @@ class _HoldPanicButtonState extends State<HoldPanicButton> {
           gradient: LinearGradient(
             colors: widget.enabled
                 ? [const Color(0xFFEF4444), const Color(0xFF991B1B)]
-                : [const Color(0xFF64748B), const Color(0xFF334155)],
+                : [const Color(0xFF7F1D1D), const Color(0xFF111827)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -113,7 +113,11 @@ class _HoldPanicButtonState extends State<HoldPanicButton> {
             Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 52),
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.white,
+                  size: 52,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   _holding ? "KEEP HOLDING" : "HOLD 3 SECONDS",

@@ -2,6 +2,18 @@ import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../components/AuthProvider";
 
+function AuthShell({ title, subtitle, children }) {
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-slate-900 p-8 rounded-3xl border border-white/10">
+        <h1 className="text-2xl font-black mb-2">{title}</h1>
+        <p className="text-slate-400 text-sm mb-6">{subtitle}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { signIn } = useAuth();
@@ -33,22 +45,18 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-white/10"
-      >
-        <h1 className="text-2xl font-black mb-2">QuickReach Sign In</h1>
-        <p className="text-slate-400 text-sm mb-6">
-          Access role-protected dashboards.
-        </p>
+    <AuthShell
+      title="QuickReach Sign In"
+      subtitle="Access role-protected dashboards."
+    >
+      <form onSubmit={onSubmit} className="space-y-3">
         <input
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="w-full mb-3 bg-slate-700 px-4 py-3 rounded-xl outline-none"
+          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         />
         <input
           type="password"
@@ -56,9 +64,9 @@ export function LoginPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="w-full mb-3 bg-slate-700 px-4 py-3 rounded-xl outline-none"
+          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         />
-        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
         <button
           disabled={loading}
           className="w-full py-3 bg-red-600 rounded-xl font-bold"
@@ -67,18 +75,18 @@ export function LoginPage() {
         </button>
         <Link
           to="/signup"
-          className="block mt-3 text-center text-slate-400 text-sm hover:text-white"
+          className="block text-center text-slate-400 text-sm hover:text-white"
         >
           New here? Create account
         </Link>
         <Link
           to="/panic"
-          className="block mt-4 text-center text-slate-400 text-sm hover:text-white"
+          className="block text-center text-slate-400 text-sm hover:text-white"
         >
           Continue to Citizen Mode
         </Link>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 
@@ -125,22 +133,15 @@ export function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm bg-slate-800 p-8 rounded-3xl border border-white/10"
-      >
-        <h1 className="text-2xl font-black mb-2">Create Account</h1>
-        <p className="text-slate-400 text-sm mb-6">
-          Sign up for QuickReach access.
-        </p>
+    <AuthShell title="Create Account" subtitle="Sign up for QuickReach access.">
+      <form onSubmit={onSubmit} className="space-y-3">
         <input
           type="email"
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          className="w-full mb-3 bg-slate-700 px-4 py-3 rounded-xl outline-none"
+          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         />
         <input
           type="password"
@@ -149,33 +150,33 @@ export function SignupPage() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password (min 8)"
-          className="w-full mb-3 bg-slate-700 px-4 py-3 rounded-xl outline-none"
+          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         />
         <select
           value={role}
           onChange={(e) => setRole(e.target.value)}
-          className="w-full mb-3 bg-slate-700 px-4 py-3 rounded-xl outline-none"
+          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         >
           <option value="citizen">Citizen</option>
           <option value="volunteer">Volunteer</option>
           <option value="dispatcher">Dispatcher</option>
         </select>
-        {error && <p className="text-red-400 text-sm mb-3">{error}</p>}
-        {message && <p className="text-green-400 text-sm mb-3">{message}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
+        {message && <p className="text-red-300 text-sm">{message}</p>}
         <button
           disabled={loading}
-          className="w-full py-3 bg-blue-600 rounded-xl font-bold"
+          className="w-full py-3 bg-red-600 rounded-xl font-bold"
         >
           {loading ? "Creating Account..." : "Sign Up"}
         </button>
         <Link
           to="/login"
-          className="block mt-4 text-center text-slate-400 text-sm hover:text-white"
+          className="block text-center text-slate-400 text-sm hover:text-white"
         >
           Already have an account? Sign in
         </Link>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 
