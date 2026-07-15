@@ -21,62 +21,13 @@ export const LandingPage = () => {
   });
 
   useEffect(() => {
-    const distanceKm = (lat1, lng1, lat2, lng2) => {
-      const R = 6371;
-      const dLat = ((lat2 - lat1) * Math.PI) / 180;
-      const dLng = ((lng2 - lng1) * Math.PI) / 180;
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos((lat1 * Math.PI) / 180) *
-          Math.cos((lat2 * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2;
-      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    };
-
-    const getNearestHospitalId = (incident, hospitals) => {
-      const iLat = Number(incident?.lat);
-      const iLng = Number(incident?.lng);
-      if (!Number.isFinite(iLat) || !Number.isFinite(iLng)) return null;
-
-      let nearestId = null;
-      let nearestKm = Infinity;
-      for (const h of hospitals) {
-        const hLat = Number(h?.lat);
-        const hLng = Number(h?.lng);
-        if (!Number.isFinite(hLat) || !Number.isFinite(hLng)) continue;
-        const km = distanceKm(iLat, iLng, hLat, hLng);
-        if (km < nearestKm) {
-          nearestKm = km;
-          nearestId = h.id;
-        }
-      }
-      return nearestId;
-    };
-
     const fetchStats = async () => {
-      const [hospitalsRes, volunteersRes, incidentsRes] = await Promise.all([
-        apiFetch("/api/hospitals", { auth: false }),
-        apiFetch("/api/volunteers/online", { auth: false }),
-        apiFetch("/api/incidents", { auth: false }),
-      ]);
-
-      const hospitals = hospitalsRes.hospitals || [];
-      const volunteers = volunteersRes.volunteers || [];
-      const incidents = incidentsRes.incidents || [];
-      const usedHospitalIds = new Set();
-      for (const incident of incidents) {
-        if (incident.hospital_id) {
-          usedHospitalIds.add(incident.hospital_id);
-          continue;
-        }
-        const nearestId = getNearestHospitalId(incident, hospitals);
-        if (nearestId) usedHospitalIds.add(nearestId);
-      }
+      const statsRes = await apiFetch("/api/stats/public", { auth: false });
 
       setStats({
-        hospitals: usedHospitalIds.size,
-        volunteers: volunteers.length || 0,
-        incidents: incidents.length,
+        hospitals: statsRes.hospitals_in_use_count || 0,
+        volunteers: statsRes.volunteers_online_count || 0,
+        incidents: statsRes.incidents_count || 0,
         avgResponseSec: 2, // Can be computed from timeline data later
       });
     };

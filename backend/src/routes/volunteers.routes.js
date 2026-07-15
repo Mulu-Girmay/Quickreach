@@ -8,7 +8,11 @@ const router = express.Router();
 
 router.get("/online", async (req, res) => {
   try {
-    const volunteers = await Volunteer.find({ is_online: true });
+    // Public endpoint — never return password hashes or push subscription
+    // internals (endpoint URLs/keys) to unauthenticated callers.
+    const volunteers = await Volunteer.find({ is_online: true }).select(
+      "-password -push_subscriptions",
+    );
     res.json({ volunteers });
   } catch (err) {
     console.error("Fetch volunteers error:", err);
