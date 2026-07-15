@@ -3,7 +3,6 @@ require("dotenv").config();
 
 function maskMongoUri(uri) {
   if (!uri || typeof uri !== "string") return uri;
-  // mask credentials between '//' and '@'
   return uri.replace(/\/\/.*@/, "//<credentials>@");
 }
 
