@@ -1,7 +1,6 @@
 const { Incident } = require("../models");
 const { sendSMS } = require("../lib/sms");
 
-// Background Service: Automated SMS Updates
 const startIncidentUpdateService = () => {
   setInterval(
     async () => {

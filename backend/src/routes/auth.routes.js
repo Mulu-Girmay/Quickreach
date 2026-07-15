@@ -1,9 +1,16 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const { Volunteer } = require("../models");
-const { generateToken } = require("../lib/auth");
+const { generateToken, authMiddleware } = require("../lib/auth");
+const { requireRoles } = require("../middleware/roles");
 
 const router = express.Router();
+
+// Public self-registration. Deliberately limited to non-privileged roles —
+// dispatcher/admin accounts can only be created by an existing admin via
+// POST /api/auth/admin/create-user (see below). Do not add "dispatcher" or
+// "admin" to this list; that was the privilege-escalation bug we just fixed.
+const SELF_REGISTERABLE_ROLES = ["citizen", "volunteer"];
 
 router.post("/register", async (req, res) => {
   try {
@@ -11,9 +18,11 @@ router.post("/register", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const normalizedRole = String(role || "volunteer").toLowerCase();
-    const allowedRoles = ["citizen", "volunteer", "dispatcher", "admin"];
-    if (!allowedRoles.includes(normalizedRole)) {
-      return res.status(400).json({ error: "Invalid role" });
+    if (!SELF_REGISTERABLE_ROLES.includes(normalizedRole)) {
+      return res.status(400).json({
+        error:
+          "Invalid role. Public registration only supports citizen or volunteer accounts.",
+      });
     }
 
     const volunteer = await Volunteer.create({
@@ -34,6 +43,45 @@ router.post("/register", async (req, res) => {
     res.status(500).json({ error: err.message || "Registration failed" });
   }
 });
+
+// Admin-only: create dispatcher/admin accounts. Requires a valid admin JWT —
+// there is no unauthenticated path to a privileged role anymore.
+router.post(
+  "/admin/create-user",
+  authMiddleware,
+  requireRoles("admin"),
+  async (req, res) => {
+    try {
+      const { name, email, password, role } = req.body;
+      const normalizedRole = String(role || "").toLowerCase();
+      const allowedRoles = ["citizen", "volunteer", "dispatcher", "admin"];
+
+      if (!allowedRoles.includes(normalizedRole)) {
+        return res.status(400).json({ error: "Invalid role" });
+      }
+      if (!email || !password) {
+        return res
+          .status(400)
+          .json({ error: "Email and password are required" });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const volunteer = await Volunteer.create({
+        name: name || email.split("@")[0],
+        email,
+        password: hashedPassword,
+        role: normalizedRole,
+      });
+
+      res.json({
+        user: { ...volunteer.toObject(), password: undefined },
+      });
+    } catch (err) {
+      console.error("Admin create-user error:", err);
+      res.status(500).json({ error: err.message || "Failed to create user" });
+    }
+  },
+);
 
 router.post("/login", async (req, res) => {
   try {

@@ -5,7 +5,9 @@ const { sendSMS } = require("../lib/sms");
 const { authMiddleware } = require("../lib/auth");
 const { requireRoles } = require("../middleware/roles");
 const { requireIncidentAccess } = require("../middleware/incidentAccess");
-const { buildIncidentRecommendation } = require("../services/hospitalRecommendation");
+const {
+  buildIncidentRecommendation,
+} = require("../services/hospitalRecommendation");
 const { buildIncidentTimeline } = require("../services/incidentTimeline");
 const { emitPushToEmergencyTeam } = require("../services/pushFanout");
 const { getIO } = require("../sockets/io");
@@ -13,9 +15,6 @@ const { normalizeIncidentMessageRole } = require("../utils/normalize");
 
 const router = express.Router();
 
-/**
- * Public Incident Trigger (Web Panic Button)
- */
 router.post("/public", async (req, res) => {
   try {
     const {
@@ -75,15 +74,40 @@ router.post("/public", async (req, res) => {
   }
 });
 
-router.get("/", async (req, res) => {
-  try {
-    const incidents = await Incident.find().sort({ created_at: -1 });
-    res.json({ incidents });
-  } catch (err) {
-    console.error("Fetch incidents error:", err);
-    res.status(500).json({ error: "Failed to fetch incidents" });
-  }
-});
+// Mask all but the last 3 digits of a phone number for roles that don't need
+// the full number to do their job (volunteers see the incident, dispatchers
+// need the number to coordinate/call back).
+const maskPhone = (phone) => {
+  if (!phone) return phone;
+  const str = String(phone);
+  if (str.length <= 3) return "***";
+  return `${"*".repeat(str.length - 3)}${str.slice(-3)}`;
+};
+
+router.get(
+  "/",
+  authMiddleware,
+  requireRoles("volunteer", "dispatcher", "admin"),
+  async (req, res) => {
+    try {
+      const incidents = await Incident.find().sort({ created_at: -1 }).lean();
+      const role = normalizeIncidentMessageRole(req.user?.role);
+
+      const sanitized =
+        role === "dispatcher"
+          ? incidents
+          : incidents.map((incident) => ({
+              ...incident,
+              reporter_phone: maskPhone(incident.reporter_phone),
+            }));
+
+      res.json({ incidents: sanitized });
+    } catch (err) {
+      console.error("Fetch incidents error:", err);
+      res.status(500).json({ error: "Failed to fetch incidents" });
+    }
+  },
+);
 
 router.get("/:id", requireIncidentAccess, async (req, res) => {
   try {
@@ -151,7 +175,8 @@ router.post(
         return res.status(404).json({ error: "Incident not found" });
       }
 
-      const responderLabel = normalizeIncidentMessageRole(volunteer.role) || "volunteer";
+      const responderLabel =
+        normalizeIncidentMessageRole(volunteer.role) || "volunteer";
       await Message.create({
         incident_id: id,
         sender: responderLabel,

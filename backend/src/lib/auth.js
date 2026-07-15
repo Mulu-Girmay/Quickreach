@@ -1,8 +1,16 @@
 const jwt = require("jsonwebtoken");
 const { Volunteer } = require("../models");
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || "your-secret-key-change-in-production";
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  // Refuse to start rather than silently signing tokens with a secret that's
+  // sitting in plaintext in this file's git history. Set JWT_SECRET in your
+  // environment (.env locally, host's env config in production).
+  throw new Error(
+    "JWT_SECRET is not set. Refusing to start with an insecure fallback secret.",
+  );
+}
 
 const generateToken = (user) => {
   return jwt.sign(
