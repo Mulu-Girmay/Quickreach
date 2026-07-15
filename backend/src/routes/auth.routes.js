@@ -6,10 +6,6 @@ const { requireRoles } = require("../middleware/roles");
 
 const router = express.Router();
 
-// Public self-registration. Deliberately limited to non-privileged roles —
-// dispatcher/admin accounts can only be created by an existing admin via
-// POST /api/auth/admin/create-user (see below). Do not add "dispatcher" or
-// "admin" to this list; that was the privilege-escalation bug we just fixed.
 const SELF_REGISTERABLE_ROLES = ["citizen", "volunteer"];
 
 router.post("/register", async (req, res) => {

@@ -1,33 +1,18 @@
-const { Incident } = require("../models");
-const { sendSMS } = require("../lib/sms");
+const { scheduleDispatchSweep } = require("../queues/incidentSmsQueue");
+const { startIncidentSmsWorker } = require("../workers/incidentSmsWorker");
 
-const startIncidentUpdateService = () => {
-  setInterval(
-    async () => {
-      const incidents = await Incident.find({
-        status: "Dispatched",
-        notified_dispatched: false,
-      });
-
-      for (const incident of incidents) {
-        try {
-          const phone = incident.reporter_phone.replace("USSD ", "");
-          const message = `QuickReach: Dispatch confirmed. The ${incident.type} team is moving toward you. 2km remaining.`;
-          await sendSMS(phone, message);
-
-          await Incident.findByIdAndUpdate(incident._id, {
-            notified_dispatched: true,
-          });
-        } catch (err) {
-          console.error(
-            `Failed to send SMS for incident ${incident._id}:`,
-            err,
-          );
-        }
-      }
-    },
-    5 * 60 * 1000,
-  );
+// Previously: a setInterval running inside this process. If you ever ran
+// more than one backend instance (which you'll need to do the moment this
+// gets real traffic), every instance polled independently every 5 minutes
+// and could double- or triple-send the same "dispatch confirmed" SMS.
+//
+// Now: backed by BullMQ + Redis. The recurring schedule is registered once
+// (deduped across instances by jobId), and only a worker that picks up the
+// job actually runs it — so N running instances no longer mean N duplicate
+// sends. See queues/incidentSmsQueue.js and workers/incidentSmsWorker.js.
+const startIncidentUpdateService = async () => {
+  startIncidentSmsWorker();
+  await scheduleDispatchSweep();
 };
 
 module.exports = { startIncidentUpdateService };

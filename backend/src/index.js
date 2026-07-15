@@ -50,7 +50,7 @@ const startServer = async () => {
   try {
     await connectDB();
     await seedDemoAccounts();
-    startIncidentUpdateService();
+    await startIncidentUpdateService();
     server.listen(PORT, () => {
       console.log(`
   🚑 QuickReach Backend Service
