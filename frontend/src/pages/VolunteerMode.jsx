@@ -107,6 +107,8 @@ export const VolunteerMode = () => {
     } catch (error) {
       console.error("Volunteer accept failed:", error.message);
       alert(error.message || "Could not accept incident.");
+
+      fetchNearbyIncidents();
     }
   };
 
@@ -138,20 +140,52 @@ export const VolunteerMode = () => {
     }
   }, []);
 
+  const lastLocationSyncRef = useRef({ time: 0, lat: null, lng: null });
+
   useEffect(() => {
     if (!profile) return;
-    const syncStatus = async () => {
+
+    const syncStatus = async (extra = {}) => {
       try {
         await apiFetch("/api/volunteers/me/status", {
           method: "PATCH",
-          body: { is_online: isOnline },
+          body: { is_online: isOnline, ...extra },
         });
       } catch (error) {
         console.error("Volunteer status sync failed:", error.message);
       }
     };
-    syncStatus();
+
+    syncStatus(location ? { lat: location.lat, lng: location.lng } : {});
+    if (location) {
+      lastLocationSyncRef.current = {
+        time: Date.now(),
+        lat: location.lat,
+        lng: location.lng,
+      };
+    }
   }, [isOnline, profile]);
+
+  useEffect(() => {
+    if (!profile || !isOnline || !location) return;
+
+    const now = Date.now();
+    const last = lastLocationSyncRef.current;
+    if (now - last.time < 15000) return;
+
+    lastLocationSyncRef.current = {
+      time: now,
+      lat: location.lat,
+      lng: location.lng,
+    };
+
+    apiFetch("/api/volunteers/me/status", {
+      method: "PATCH",
+      body: { is_online: isOnline, lat: location.lat, lng: location.lng },
+    }).catch((error) => {
+      console.error("Volunteer location sync failed:", error.message);
+    });
+  }, [location, isOnline, profile]);
 
   useEffect(() => {
     if (!isOnline) return;

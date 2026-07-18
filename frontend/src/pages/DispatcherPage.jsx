@@ -501,8 +501,8 @@ export const DispatcherPage = () => {
                 incident.lng,
               );
               const hosp = nearestHospital?.hospital || null;
-              const currentCap = Number(hosp?.current_capacity || 0);
-              const maxCap = Number(hosp?.max_capacity || 0);
+              const currentCap = Number(hosp?.available_beds || 0);
+              const maxCap = Number(hosp?.capacity || 0);
               const full = maxCap > 0 && currentCap >= maxCap;
               return (
                 <div
@@ -690,11 +690,11 @@ export const DispatcherPage = () => {
             showHeatmap={showHeatmap}
             volunteers={volunteers}
             showVolunteers={showVolunteers}
-            nearestHospital={null}
+            nearestHospital={selectedIncident ? getNearestHospital(selectedIncident.lat, selectedIncident.lng)?.hospital || null : null}
             className="h-[28vh] sm:h-[36vh] lg:h-[50vh] rounded-none border-0 shadow-none"
           />
 
-          <div className="absolute top-10 right-10 z-10 hidden sm:flex flex-col gap-2 scale-90 origin-top-right">
+          <div className="absolute top-10 right-10 z-[400] hidden sm:flex flex-col gap-2 scale-90 origin-top-right">
             <button
               onClick={() => setShowHeatmap(!showHeatmap)}
               className={cn(
@@ -1010,6 +1010,12 @@ export const DispatcherPage = () => {
         )}
       </main>
       <IVRSimulator isOpen={isIVROpen} onClose={() => setIsIVROpen(false)} />
+      <EmergencyChat
+        incidentId={selectedIncidentId}
+        senderType="dispatcher"
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
       {isVideoCallOpen && (
         <VideoSOSModal
           onClose={() => setIsVideoCallOpen(false)}

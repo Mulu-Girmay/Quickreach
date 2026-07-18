@@ -169,7 +169,7 @@ export const NotificationProvider = ({ children }) => {
         ELIGIBLE_PUSH_ROLES.has(String(role || "").toLowerCase()) &&
         isPushSupported &&
         !isPushEnabled && (
-          <div className="fixed top-40 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-bottom-4 duration-500">
             <button
               onClick={enablePushAlerts}
               disabled={isPushLoading}
@@ -190,7 +190,7 @@ export const NotificationProvider = ({ children }) => {
         ELIGIBLE_PUSH_ROLES.has(String(role || "").toLowerCase()) &&
         isPushEnabled &&
         pushMessage && (
-          <div className="fixed top-40 right-6 z-[9999] animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] animate-in fade-in slide-in-from-bottom-4 duration-500">
             <p className="text-[10px] font-black uppercase tracking-widest text-red-200 bg-slate-950/90 border border-red-800 rounded-xl px-3 py-2 shadow-lg shadow-red-900/20 max-w-80">
               {pushMessage}
             </p>

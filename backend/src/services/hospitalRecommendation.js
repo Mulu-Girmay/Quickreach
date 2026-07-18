@@ -1,26 +1,15 @@
 const { Hospital } = require("../models");
 const { haversineKm } = require("../utils/geo");
+const findNearestHospital = async (lat, lng) => {
+  const incidentLat = Number(lat);
+  const incidentLng = Number(lng);
 
-const buildIncidentRecommendation = async (incident) => {
-  const hospitals = await Hospital.find().lean();
-  const incidentLat = Number(incident?.lat);
-  const incidentLng = Number(incident?.lng);
-
-  if (
-    !Number.isFinite(incidentLat) ||
-    !Number.isFinite(incidentLng) ||
-    hospitals.length === 0
-  ) {
-    return {
-      hospital_name: "No hospital available",
-      eta_minutes: null,
-      capacity_confidence: 0,
-      distance_km: null,
-      available_beds: null,
-      capacity: null,
-      contact: null,
-    };
+  if (!Number.isFinite(incidentLat) || !Number.isFinite(incidentLng)) {
+    return null;
   }
+
+  const hospitals = await Hospital.find().lean();
+  if (hospitals.length === 0) return null;
 
   let nearestHospital = null;
   let nearestDistanceKm = Infinity;
@@ -28,7 +17,8 @@ const buildIncidentRecommendation = async (incident) => {
   for (const hospital of hospitals) {
     const hospitalLat = Number(hospital.lat);
     const hospitalLng = Number(hospital.lng);
-    if (!Number.isFinite(hospitalLat) || !Number.isFinite(hospitalLng)) continue;
+    if (!Number.isFinite(hospitalLat) || !Number.isFinite(hospitalLng))
+      continue;
 
     const distanceKm = haversineKm(
       incidentLat,
@@ -43,7 +33,15 @@ const buildIncidentRecommendation = async (incident) => {
     }
   }
 
-  if (!nearestHospital) {
+  if (!nearestHospital) return null;
+
+  return { hospital: nearestHospital, distanceKm: nearestDistanceKm };
+};
+
+const buildIncidentRecommendation = async (incident) => {
+  const result = await findNearestHospital(incident?.lat, incident?.lng);
+
+  if (!result) {
     return {
       hospital_name: "No hospital available",
       eta_minutes: null,
@@ -54,6 +52,8 @@ const buildIncidentRecommendation = async (incident) => {
       contact: null,
     };
   }
+
+  const { hospital: nearestHospital, distanceKm: nearestDistanceKm } = result;
 
   const capacity = Number(
     nearestHospital.capacity ?? nearestHospital.max_capacity ?? 0,
@@ -77,4 +77,4 @@ const buildIncidentRecommendation = async (incident) => {
   };
 };
 
-module.exports = { buildIncidentRecommendation };
+module.exports = { buildIncidentRecommendation, findNearestHospital };

@@ -1,35 +1,55 @@
-const NodeCache = require('node-cache');
+const { createBoundedConnection } = require("../lib/redis");
 
-// Sessions expire after 5 minutes of inactivity
-const sessionCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
+const redis = createBoundedConnection(3000);
+
+const SESSION_TTL_SECONDS = 300;
+const SESSION_KEY_PREFIX = "ussd:session:";
 
 const STATES = {
-  START: 'START',
-  PICK_TYPE: 'PICK_TYPE',
-  PICK_LOCATION: 'PICK_LOCATION',
-  CONFIRM: 'CONFIRM',
-  COMPLETED: 'COMPLETED'
+  START: "START",
+  PICK_TYPE: "PICK_TYPE",
+  PICK_LOCATION: "PICK_LOCATION",
+  CONFIRM: "CONFIRM",
+  COMPLETED: "COMPLETED",
 };
 
-const getSession = (sessionId) => {
-  return sessionCache.get(sessionId) || { state: STATES.START, data: {} };
+const sessionKey = (sessionId) => `${SESSION_KEY_PREFIX}${sessionId}`;
+
+const getSession = async (sessionId) => {
+  const raw = await redis.get(sessionKey(sessionId));
+  if (!raw) {
+    return { state: STATES.START, data: {} };
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error(`[USSD] Corrupted session data for ${sessionId}, resetting.`);
+    return { state: STATES.START, data: {} };
+  }
 };
 
-const updateSession = (sessionId, state, data = {}) => {
-  const current = getSession(sessionId);
-  sessionCache.set(sessionId, { 
-    state, 
-    data: { ...current.data, ...data } 
-  });
+const updateSession = async (sessionId, state, data = {}) => {
+  const current = await getSession(sessionId);
+  const next = { state, data: { ...current.data, ...data } };
+
+  await redis.set(
+    sessionKey(sessionId),
+    JSON.stringify(next),
+    "EX",
+    SESSION_TTL_SECONDS,
+  );
+
+  return next;
 };
 
-const clearSession = (sessionId) => {
-  sessionCache.del(sessionId);
+const clearSession = async (sessionId) => {
+  await redis.del(sessionKey(sessionId));
 };
 
 module.exports = {
   STATES,
   getSession,
   updateSession,
-  clearSession
+  clearSession,
 };

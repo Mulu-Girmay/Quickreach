@@ -10,12 +10,17 @@ const {
 } = require("../services/hospitalRecommendation");
 const { buildIncidentTimeline } = require("../services/incidentTimeline");
 const { emitPushToEmergencyTeam } = require("../services/pushFanout");
-const { getIO } = require("../sockets/io");
+const { emitIncidentEvent, emitToTeamAndIncident } = require("../sockets/io");
 const { normalizeIncidentMessageRole } = require("../utils/normalize");
+const { maskPhone } = require("../utils/mask");
+const { incidentCreationLimiter } = require("../middleware/rateLimit");
 
 const router = express.Router();
 
-router.post("/public", async (req, res) => {
+/**
+ * Public Incident Trigger (Web Panic Button)
+ */
+router.post("/public", incidentCreationLimiter, async (req, res) => {
   try {
     const {
       type,
@@ -41,8 +46,6 @@ router.post("/public", async (req, res) => {
       reporter_phone,
     );
 
-    const io = getIO();
-
     // Create an initial citizen message so dispatch chat has a first SOS entry.
     const incidentId = result?.incident?._id;
     if (incidentId) {
@@ -53,36 +56,43 @@ router.post("/public", async (req, res) => {
           description?.trim() ||
           `SOS alert received for ${type || result.incident.type || "Unknown"} emergency.`,
       });
-      io.emit(`message-${incidentId}`, initialMessage);
+      emitToTeamAndIncident(
+        incidentId,
+        `message-${incidentId}`,
+        initialMessage,
+      );
     }
 
-    io.emit("new-incident", result.incident);
-    await emitPushToEmergencyTeam({
-      title: "New Emergency Alert",
-      body: `${result.incident.type} incident reported. Open QuickReach to review details.`,
-      url: "/dispatcher",
-      tag: `incident-${result.incident._id || result.incident.id}`,
-      data: {
-        incidentId: String(result.incident._id || result.incident.id || ""),
-        status: result.incident.status || "Pending",
+    // Team-scoped, split by privilege: dispatchers/admins get the full
+    // record, volunteers get it with the phone number masked. Previously
+    // this was io.emit("new-incident", ...) — a global broadcast to every
+    // connected socket, authenticated or not.
+    emitIncidentEvent("new-incident", result.incident, { incidentId });
+
+    await emitPushToEmergencyTeam(
+      {
+        title: "New Emergency Alert",
+        body: `${result.incident.type} incident reported. Open QuickReach to review details.`,
+        url: "/dispatcher",
+        tag: `incident-${result.incident._id || result.incident.id}`,
+        data: {
+          incidentId: String(result.incident._id || result.incident.id || ""),
+          status: result.incident.status || "Pending",
+        },
       },
-    });
+      {
+        incidentLocation: {
+          lat: result.incident.lat,
+          lng: result.incident.lng,
+        },
+      },
+    );
     res.json(result);
   } catch (err) {
     console.error("Public Incident Error:", err.message, err.details || err);
     res.status(500).json({ error: err.message || "Failed to create incident" });
   }
 });
-
-// Mask all but the last 3 digits of a phone number for roles that don't need
-// the full number to do their job (volunteers see the incident, dispatchers
-// need the number to coordinate/call back).
-const maskPhone = (phone) => {
-  if (!phone) return phone;
-  const str = String(phone);
-  if (str.length <= 3) return "***";
-  return `${"*".repeat(str.length - 3)}${str.slice(-3)}`;
-};
 
 router.get(
   "/",
@@ -170,28 +180,68 @@ router.post(
       const { id } = req.params;
       const volunteer = req.user;
 
-      const incident = await Incident.findById(id);
+      // Atomic, conditional update: only succeeds if assigned_volunteer_id
+      // is still null at the moment MongoDB applies the write. If two
+      // volunteers race to accept the same incident, MongoDB serializes the
+      // writes per-document — exactly one of these calls can match the
+      // filter and win; the other gets null back and is told it's taken.
+      // This replaces the old version, which just wrote a message with no
+      // check at all, letting any number of volunteers "accept" the same
+      // incident simultaneously.
+      const incident = await Incident.findOneAndUpdate(
+        { _id: id, assigned_volunteer_id: null },
+        {
+          $set: {
+            assigned_volunteer_id: volunteer._id,
+            assigned_volunteer_name: volunteer.name,
+            assigned_at: new Date(),
+            status: "Dispatched",
+            updated_at: new Date(),
+          },
+        },
+        { new: true },
+      );
+
       if (!incident) {
-        return res.status(404).json({ error: "Incident not found" });
+        const existing = await Incident.findById(id);
+        if (!existing) {
+          return res.status(404).json({ error: "Incident not found" });
+        }
+        return res.status(409).json({
+          error:
+            "This incident has already been accepted by another responder.",
+          assigned_volunteer_name: existing.assigned_volunteer_name,
+        });
       }
 
       const responderLabel =
         normalizeIncidentMessageRole(volunteer.role) || "volunteer";
-      await Message.create({
+      const acceptMessage = await Message.create({
         incident_id: id,
         sender: responderLabel,
         message: `${responderLabel === "dispatcher" ? "Dispatcher" : "Volunteer"} update: ${volunteer.name} has accepted this incident and is en route.`,
       });
 
-      await emitPushToEmergencyTeam({
-        title: "Volunteer Accepted Incident",
-        body: `${volunteer.name} accepted the ${incident.type} incident and is en route.`,
-        url: "/dispatcher",
-        tag: `incident-accept-${id}`,
-        data: {
-          incidentId: String(id),
+      // Status changed (Pending -> Dispatched) and assignment was set, so
+      // broadcast the updated incident the same way the manual dispatcher
+      // status-update endpoint does — team gets it (masked for volunteers),
+      // and the citizen who owns this incident gets it via their room.
+      emitIncidentEvent("incident-updated", incident, { incidentId: id });
+      emitIncidentEvent(`incident-${id}`, incident, { incidentId: id });
+      emitToTeamAndIncident(id, `message-${id}`, acceptMessage);
+
+      await emitPushToEmergencyTeam(
+        {
+          title: "Volunteer Accepted Incident",
+          body: `${volunteer.name} accepted the ${incident.type} incident and is en route.`,
+          url: "/dispatcher",
+          tag: `incident-accept-${id}`,
+          data: {
+            incidentId: String(id),
+          },
         },
-      });
+        { incidentLocation: { lat: incident.lat, lng: incident.lng } },
+      );
 
       if (
         incident.reporter_phone &&
@@ -206,7 +256,7 @@ router.post(
         }
       }
 
-      res.json({ success: true, message: "Incident accepted" });
+      res.json({ success: true, message: "Incident accepted", incident });
     } catch (err) {
       console.error("Volunteer accept error:", err);
       res.status(500).json({ error: "Failed to accept incident" });
@@ -239,21 +289,23 @@ router.patch(
         message: `Dispatcher updated the incident status to ${status}.`,
       });
 
-      const io = getIO();
-      io.emit("incident-updated", incident);
-      io.emit(`incident-${id}`, incident);
-      io.emit(`message-${id}`, dispatcherUpdate);
+      emitIncidentEvent("incident-updated", incident, { incidentId: id });
+      emitIncidentEvent(`incident-${id}`, incident, { incidentId: id });
+      emitToTeamAndIncident(id, `message-${id}`, dispatcherUpdate);
 
-      await emitPushToEmergencyTeam({
-        title: `Incident ${status}`,
-        body: `${incident.type} case is now marked ${status.toLowerCase()}.`,
-        url: "/dispatcher",
-        tag: `incident-status-${id}`,
-        data: {
-          incidentId: String(id),
-          status,
+      await emitPushToEmergencyTeam(
+        {
+          title: `Incident ${status}`,
+          body: `${incident.type} case is now marked ${status.toLowerCase()}.`,
+          url: "/dispatcher",
+          tag: `incident-status-${id}`,
+          data: {
+            incidentId: String(id),
+            status,
+          },
         },
-      });
+        { incidentLocation: { lat: incident.lat, lng: incident.lng } },
+      );
 
       if (
         status === "Resolved" &&

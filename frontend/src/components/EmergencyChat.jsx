@@ -11,6 +11,7 @@ export const EmergencyChat = ({
   onClose,
   requireAuth = true,
   publicIncidentToken = null,
+  inline = false,
 }) => {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -89,27 +90,33 @@ export const EmergencyChat = ({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen && !inline) return null;
+  if (inline && !incidentId) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[100] animate-in slide-in-from-bottom-5 duration-300">
+    <div className={inline
+      ? "flex flex-col h-full backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border border-[rgba(255,255,255,0.08)] rounded-3xl overflow-hidden"
+      : "fixed bottom-20 right-4 sm:bottom-24 sm:right-6 w-[calc(100vw-2rem)] max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[999] animate-in slide-in-from-bottom-5 duration-300"
+    }>
       {/* Header */}
-      <div className="bg-slate-900 p-4 text-white flex justify-between items-center shrink-0">
+      <div className={inline ? "p-4 text-white flex justify-between items-center shrink-0 border-b border-[rgba(255,255,255,0.08)]" : "bg-slate-900 p-4 text-white flex justify-between items-center shrink-0"}>
         <div className="flex items-center gap-2">
           <MessageCircle className="w-4 h-4 text-red-500" />
           <span className="text-xs font-black uppercase tracking-widest">
             Emergency Chat
           </span>
         </div>
-        <button onClick={onClose} className="hover:bg-white/10 p-1 rounded-lg">
-          <X className="w-4 h-4" />
-        </button>
+        {onClose && (
+          <button onClick={onClose} className="hover:bg-white/10 p-1 rounded-lg">
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-[280px] max-h-[400px] bg-slate-50">
+      <div className={`flex-1 overflow-y-auto p-4 space-y-3 min-h-[280px] max-h-[400px] ${inline ? "bg-transparent" : "bg-slate-50"}`}>
         {messages.length === 0 && (
-          <p className="text-[10px] text-center text-slate-400 mt-10 font-bold uppercase tracking-tight">
+          <p className={`text-[10px] text-center mt-10 font-bold uppercase tracking-tight ${inline ? "text-white/40" : "text-slate-400"}`}>
             Encrypted Emergency Line Open...
           </p>
         )}
@@ -128,12 +135,14 @@ export const EmergencyChat = ({
                 "px-3 py-2.5 rounded-2xl text-xs sm:text-sm font-medium leading-relaxed shadow-sm",
                 m.sender === senderType
                   ? "bg-red-600 text-white rounded-br-none"
-                  : "bg-white text-slate-800 border border-slate-200 rounded-bl-none",
+                  : inline
+                    ? "bg-white/10 text-white border border-white/10 rounded-bl-none"
+                    : "bg-white text-slate-800 border border-slate-200 rounded-bl-none",
               )}
             >
               {m.message}
             </div>
-            <div className="mt-1 flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold">
+            <div className={`mt-1 flex items-center gap-1.5 text-[10px] font-semibold ${inline ? "text-white/40" : "text-slate-400"}`}>
               <span>
                 {m.sender === senderType
                   ? "You"
@@ -157,14 +166,14 @@ export const EmergencyChat = ({
       {/* Input */}
       <form
         onSubmit={sendMessage}
-        className="p-3 bg-white border-t border-slate-100 flex gap-2 shrink-0"
+        className={`p-3 flex gap-2 shrink-0 border-t ${inline ? "bg-transparent border-white/10" : "bg-white border-slate-100"}`}
       >
         <input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message..."
-          className="flex-1 bg-slate-100 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-1 ring-red-600 transition-all font-medium"
+          className={`flex-1 border-none rounded-xl px-3 py-2.5 text-sm focus:ring-1 ring-red-600 transition-all font-medium ${inline ? "bg-white/10 text-white placeholder:text-white/30" : "bg-slate-100"}`}
         />
         <button
           type="submit"
