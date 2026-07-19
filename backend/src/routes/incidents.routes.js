@@ -180,16 +180,24 @@ router.post(
       const { id } = req.params;
       const volunteer = req.user;
 
+      const role = normalizeIncidentMessageRole(volunteer.role);
+      if (role === "volunteer" && volunteer.approval_status !== "approved") {
+        return res.status(403).json({
+          error:
+            volunteer.approval_status === "rejected"
+              ? "Your volunteer application was not approved. Contact a dispatcher for details."
+              : "Your volunteer registration is pending dispatcher approval.",
+        });
+      }
+
       // Atomic, conditional update: only succeeds if assigned_volunteer_id
-      // is still null at the moment MongoDB applies the write. If two
-      // volunteers race to accept the same incident, MongoDB serializes the
-      // writes per-document — exactly one of these calls can match the
-      // filter and win; the other gets null back and is told it's taken.
-      // This replaces the old version, which just wrote a message with no
-      // check at all, letting any number of volunteers "accept" the same
-      // incident simultaneously.
+      // is still null AND the incident is still Pending at the moment
+      // MongoDB applies the write. If two volunteers race to accept the
+      // same Pending incident, MongoDB serializes the writes per-document —
+      // exactly one of these calls can match the filter and win; the other
+      // gets null back and is told it's taken.
       const incident = await Incident.findOneAndUpdate(
-        { _id: id, assigned_volunteer_id: null },
+        { _id: id, assigned_volunteer_id: null, status: "Pending" },
         {
           $set: {
             assigned_volunteer_id: volunteer._id,
@@ -207,6 +215,11 @@ router.post(
         if (!existing) {
           return res.status(404).json({ error: "Incident not found" });
         }
+        if (existing.status !== "Pending") {
+          return res.status(409).json({
+            error: `This incident is already "${existing.status}" and can no longer be accepted.`,
+          });
+        }
         return res.status(409).json({
           error:
             "This incident has already been accepted by another responder.",
@@ -222,10 +235,6 @@ router.post(
         message: `${responderLabel === "dispatcher" ? "Dispatcher" : "Volunteer"} update: ${volunteer.name} has accepted this incident and is en route.`,
       });
 
-      // Status changed (Pending -> Dispatched) and assignment was set, so
-      // broadcast the updated incident the same way the manual dispatcher
-      // status-update endpoint does — team gets it (masked for volunteers),
-      // and the citizen who owns this incident gets it via their room.
       emitIncidentEvent("incident-updated", incident, { incidentId: id });
       emitIncidentEvent(`incident-${id}`, incident, { incidentId: id });
       emitToTeamAndIncident(id, `message-${id}`, acceptMessage);
@@ -236,9 +245,7 @@ router.post(
           body: `${volunteer.name} accepted the ${incident.type} incident and is en route.`,
           url: "/dispatcher",
           tag: `incident-accept-${id}`,
-          data: {
-            incidentId: String(id),
-          },
+          data: { incidentId: String(id) },
         },
         { incidentLocation: { lat: incident.lat, lng: incident.lng } },
       );
@@ -264,6 +271,14 @@ router.post(
   },
 );
 
+// Valid forward-only transitions. A dispatcher can't jump straight from
+// Pending to Resolved — an incident has to actually be Dispatched first.
+const VALID_STATUS_TRANSITIONS = {
+  Pending: ["Dispatched"],
+  Dispatched: ["Resolved"],
+  Resolved: [],
+};
+
 router.patch(
   "/:id/status",
   authMiddleware,
@@ -273,11 +288,29 @@ router.patch(
       const { id } = req.params;
       const { status } = req.body;
 
+      const current = await Incident.findById(id);
+      if (!current) {
+        return res.status(404).json({ error: "Incident not found" });
+      }
+
+      const allowedNextStatuses =
+        VALID_STATUS_TRANSITIONS[current.status] || [];
+      if (!allowedNextStatuses.includes(status)) {
+        return res.status(400).json({
+          error: `Cannot change status from "${current.status}" to "${status}". Valid next step(s): ${
+            allowedNextStatuses.length
+              ? allowedNextStatuses.join(", ")
+              : "none — this incident is already closed"
+          }.`,
+        });
+      }
+
       const incident = await Incident.findByIdAndUpdate(
         id,
         { status, updated_at: new Date() },
         { new: true },
       );
+      // ...rest unchanged
 
       if (!incident) {
         return res.status(404).json({ error: "Incident not found" });

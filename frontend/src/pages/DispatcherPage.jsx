@@ -690,7 +690,12 @@ export const DispatcherPage = () => {
             showHeatmap={showHeatmap}
             volunteers={volunteers}
             showVolunteers={showVolunteers}
-            nearestHospital={selectedIncident ? getNearestHospital(selectedIncident.lat, selectedIncident.lng)?.hospital || null : null}
+            nearestHospital={
+              selectedIncident
+                ? getNearestHospital(selectedIncident.lat, selectedIncident.lng)
+                    ?.hospital || null
+                : null
+            }
             className="h-[28vh] sm:h-[36vh] lg:h-[50vh] rounded-none border-0 shadow-none"
           />
 
@@ -853,22 +858,34 @@ export const DispatcherPage = () => {
                     Delayed report
                   </p>
                 )}
-
                 {recommendation && (
                   <div className="mt-4 bg-slate-800/50 p-4 rounded-2xl border border-white/5">
                     <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-2">
                       Decision Assist
                     </p>
-                    <p className="text-sm font-bold text-white">
-                      {recommendation.hospital_name}
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      ETA: {recommendation.eta_minutes} min
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Capacity confidence:{" "}
-                      {(recommendation.capacity_confidence * 100).toFixed(0)}%
-                    </p>
+                    {recommendation.hospital_name ===
+                    "No hospital available" ? (
+                      <p className="text-xs text-amber-400 font-bold">
+                        No hospital data on file yet. Add hospitals under system
+                        settings to enable routing recommendations.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm font-bold text-white">
+                          {recommendation.hospital_name}
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          ETA: {recommendation.eta_minutes} min
+                        </p>
+                        <p className="text-xs text-slate-400">
+                          Capacity confidence:{" "}
+                          {(recommendation.capacity_confidence * 100).toFixed(
+                            0,
+                          )}
+                          %
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -955,9 +972,15 @@ export const DispatcherPage = () => {
                           : "DISPATCH"}
                       </button>
                       <button
-                        className="bg-slate-800 text-white py-3 rounded-2xl font-black text-xs hover:bg-slate-700 border border-white/5 italic"
+                        className="bg-slate-800 text-white py-3 rounded-2xl font-black text-xs hover:bg-slate-700 border border-white/5 italic disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
                         onClick={() =>
                           updateStatus(selectedIncidentId, "Resolved")
+                        }
+                        disabled={selectedIncident.status !== "Dispatched"}
+                        title={
+                          selectedIncident.status !== "Dispatched"
+                            ? "Dispatch a responder before resolving this incident"
+                            : undefined
                         }
                       >
                         RESOLVE

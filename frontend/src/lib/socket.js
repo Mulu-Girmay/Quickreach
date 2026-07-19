@@ -13,6 +13,10 @@ export const getSocket = () => {
     socketInstance = io(SOCKET_BASE || window.location.origin, {
       autoConnect: false,
       transports: ["websocket", "polling"],
+      auth: (cb) => {
+        const token = localStorage.getItem("quickreach_auth_token");
+        cb({ token: token || null });
+      },
     });
   }
 

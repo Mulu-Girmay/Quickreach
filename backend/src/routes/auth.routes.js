@@ -26,6 +26,7 @@ router.post("/register", async (req, res) => {
       email,
       password: hashedPassword,
       role: normalizedRole,
+      approval_status: normalizedRole === "volunteer" ? "pending" : "approved",
     });
 
     const token = generateToken(volunteer);
@@ -67,6 +68,7 @@ router.post(
         email,
         password: hashedPassword,
         role: normalizedRole,
+        approval_status: "approved",
       });
 
       res.json({

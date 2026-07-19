@@ -35,8 +35,33 @@ export const VolunteerMode = () => {
     responseRate: 0,
   });
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [approvalMessage, setApprovalMessage] = useState(null);
+  const lastLocationSyncRef = useRef({ time: 0, lat: null, lng: null });
 
-  // Get greeting based on time
+  const handleToggleOnline = async () => {
+    const nextValue = !isOnline;
+    setApprovalMessage(null);
+    try {
+      await apiFetch("/api/volunteers/me/status", {
+        method: "PATCH",
+        body: {
+          is_online: nextValue,
+          ...(location ? { lat: location.lat, lng: location.lng } : {}),
+        },
+      });
+      setIsOnline(nextValue);
+      if (location) {
+        lastLocationSyncRef.current = {
+          time: Date.now(),
+          lat: location.lat,
+          lng: location.lng,
+        };
+      }
+    } catch (error) {
+      console.error("Volunteer status sync failed:", error.message);
+      setApprovalMessage(error.message);
+    }
+  }; // Get greeting based on time
   const getGreeting = () => {
     const hour = currentTime.getHours();
     if (hour < 12) return "Morning";
@@ -140,8 +165,6 @@ export const VolunteerMode = () => {
     }
   }, []);
 
-  const lastLocationSyncRef = useRef({ time: 0, lat: null, lng: null });
-
   useEffect(() => {
     if (!profile) return;
 
@@ -235,6 +258,11 @@ export const VolunteerMode = () => {
               <span className="text-xs text-[#94A3B8]">Volunteer</span>
             </div>
           </div>
+          {approvalMessage && (
+            <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 text-sm text-amber-300">
+              {approvalMessage}
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
