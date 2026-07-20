@@ -42,12 +42,7 @@ const VolunteerSchema = new mongoose.Schema({
   lat: Number,
   lng: Number,
   last_active: Date,
-  // Self-registered volunteers start "pending" and can't go online or accept
-  // incidents until a dispatcher/admin approves them. Dispatcher/admin
-  // accounts (created via the admin-only endpoint or the CLI bootstrap
-  // script, never via public self-registration) are approved by default —
-  // they're already vetted by whoever created them. Citizens don't perform
-  // any gated action, so their approval status is irrelevant in practice.
+
   approval_status: {
     type: String,
     enum: ["pending", "approved", "rejected"],
