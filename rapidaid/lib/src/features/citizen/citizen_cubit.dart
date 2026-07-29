@@ -151,14 +151,24 @@ class CitizenCubit extends Cubit<CitizenState> {
 
       await BackgroundSyncService.scheduleImmediateSync();
 
-      emit(
-        state.copyWith(
-          transientMessage: "✅ Emergency sent to dispatch! Help is on the way.",
-          syncing: false,
-        ),
+      // Don't assume success just because we attempted a sync — check
+      // what actually happened. If the request was blocked (bad API URL,
+      // no cleartext permission, server unreachable, etc.) the job will
+      // still be "pending"/"failed" here, not "sent".
+      final syncStatus = await _repository.getSyncStatus(incident.localId);
+      final synced = syncStatus == "sent";
+
+      await _reloadFromDb(
+        message: synced
+            ? "✅ Emergency sent to dispatch! Help is on the way."
+            : "⚠️ Could not reach the server. We'll keep retrying — check your connection.",
+        activeLocalId: incident.localId,
+        syncing: false,
       );
 
-      print("✅ Sync completed");
+      print(
+        synced ? "✅ Sync completed" : "⚠️ Sync did not complete: $syncStatus",
+      );
     } else {
       print("🔴 Offline - scheduling retry in 8 seconds");
 

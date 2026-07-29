@@ -199,12 +199,24 @@ async function triggerEmergency(data, phone, sessionId = null) {
     console.log("[HOSPITAL] No hospitals found, using default");
   }
 
+  // Tag the reporter phone with its channel of origin so dispatchers can
+  // tell USSD, native mobile app, and web panic-button reports apart.
+  // The Flutter app generates placeholder identifiers like
+  // "FLUTTER-AB12CD34" when no real phone number is on file yet.
+  let originPrefix = "WEB";
+  if (phone.startsWith("USSD")) {
+    originPrefix = null; // already tagged by the USSD handler
+  } else if (phone.startsWith("FLUTTER-")) {
+    originPrefix = "MOBILE";
+  }
+
   const incident = await Incident.create({
     type: data.type,
     lat,
     lng,
     status: "Pending",
-    reporter_phone: phone.startsWith("USSD") ? phone : `WEB ${phone}`,
+    reporter_phone: originPrefix ? `${originPrefix} ${phone}` : phone,
+    description: data.description || undefined,
     session_id: sessionId,
     hospital_id: hospitalId,
     offline_created: Boolean(data.offline_created),

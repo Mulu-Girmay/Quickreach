@@ -56,7 +56,7 @@ class SocketService {
             .setTransports(['websocket', 'polling'])
             .setPath('/socket.io')
             .enableAutoConnect()
-            .setExtraHeaders({'Authorization': 'Bearer $token'})
+            .setAuth({'token': token ?? ''})
             .build(),
       );
 
@@ -91,18 +91,8 @@ class SocketService {
         _incidentController.add({'type': 'updated', 'data': data});
       });
 
-      // Listen for specific incident updates if we have an incident ID
-      if (_currentIncidentId != null && _currentIncidentId!.isNotEmpty) {
-        _socket!.on('incident-${_currentIncidentId}', (data) {
-          print('📌 Specific incident update: $data');
-          _incidentController.add({'type': 'specific', 'data': data});
-        });
-
-        _socket!.on('message-${_currentIncidentId}', (data) {
-          print('💬 New incident message: $data');
-          _messageController.add(data);
-        });
-      }
+      // Incident-specific listeners (incident-$id, message-$id) are
+      // set up in joinIncidentRoom(), called from _joinRooms().
 
       _socket!.on('message', (data) {
         print('💬 New message: $data');
@@ -123,28 +113,33 @@ class SocketService {
   }
 
   void _joinRooms() {
-    // Join team room based on role
-    if (_currentRole == 'dispatcher' || _currentRole == 'admin') {
-      _socket?.emit('join-team', {'role': 'dispatcher'});
-      print('👤 Joined dispatcher room');
-    } else if (_currentRole == 'volunteer') {
-      _socket?.emit('join-team', {'role': 'volunteer'});
-      print('👤 Joined volunteer room');
-    }
+    // Team rooms (team:privileged, team:volunteer) are auto-joined
+    // by the backend based on the authenticated user's JWT role —
+    // no client-side emit is needed.
 
-    // Join incident room if citizen has an active incident
+    // Join incident room if citizen has an active incident.
     if (_currentIncidentId != null &&
         _currentIncidentId!.isNotEmpty &&
         _currentRole == 'citizen') {
-      _socket?.emit('join-incident', {'incident_id': _currentIncidentId});
-      print('👤 Joined incident room: $_currentIncidentId');
+      joinIncidentRoom(_currentIncidentId!);
     }
   }
 
   void joinIncidentRoom(String incidentId) async {
+    // Clean up listeners from the previous incident to prevent leaks.
+    if (_currentIncidentId != null && _currentIncidentId != incidentId) {
+      _socket?.off('incident-$_currentIncidentId');
+      _socket?.off('message-$_currentIncidentId');
+    }
+
     _currentIncidentId = incidentId;
     if (_socket != null && _isConnected) {
-      _socket!.emit('join-incident', {'incident_id': incidentId});
+      // Backend expects camelCase 'incidentId'. Anonymous citizens
+      // must also pass 'token' (== incidentId) for access verification.
+      _socket!.emit('join-incident', {
+        'incidentId': incidentId,
+        'token': incidentId,
+      });
 
       // Set up listeners for this incident
       _socket!.on('incident-$incidentId', (data) {
@@ -165,7 +160,7 @@ class SocketService {
 
   void leaveIncidentRoom(String incidentId) async {
     if (_socket != null && _isConnected) {
-      _socket!.emit('leave-incident', {'incident_id': incidentId});
+      _socket!.emit('leave-incident', {'incidentId': incidentId});
 
       // Remove listeners for this incident
       _socket!.off('incident-$incidentId');
@@ -178,6 +173,10 @@ class SocketService {
     }
   }
 
+  /// NOTE: The backend does not handle the 'send-message' socket event.
+  /// Messages should be sent via the REST API: POST /api/messages.
+  /// This method is retained for forward-compatibility but is currently a no-op
+  /// on the server side.
   void sendMessage(Map<String, dynamic> message) {
     if (_socket != null && _isConnected) {
       _socket!.emit('send-message', message);
@@ -187,6 +186,10 @@ class SocketService {
     }
   }
 
+  /// NOTE: The backend does not handle the 'send-message' socket event.
+  /// Messages should be sent via the REST API: POST /api/messages.
+  /// This method is retained for forward-compatibility but is currently a no-op
+  /// on the server side.
   void sendIncidentMessage(String incidentId, String message, String sender) {
     if (_socket != null && _isConnected) {
       final messageData = {
@@ -202,6 +205,9 @@ class SocketService {
     }
   }
 
+  /// NOTE: The backend does not handle the 'update-location' socket event.
+  /// This method is retained for forward-compatibility but is currently a no-op
+  /// on the server side.
   void updateLocation(Map<String, double> location) {
     if (_socket != null && _isConnected) {
       _socket!.emit('update-location', location);

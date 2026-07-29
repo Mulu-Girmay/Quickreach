@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 class HoldPanicButton extends StatefulWidget {
@@ -16,52 +15,74 @@ class HoldPanicButton extends StatefulWidget {
   State<HoldPanicButton> createState() => _HoldPanicButtonState();
 }
 
-class _HoldPanicButtonState extends State<HoldPanicButton> {
+class _HoldPanicButtonState extends State<HoldPanicButton>
+    with SingleTickerProviderStateMixin {
   Timer? _timer;
-  double _progress = 0;
+  double _progress = 0.0;
   bool _holding = false;
+  bool _triggered = false;
 
   void _startHold() {
-    if (!widget.enabled || _holding) return;
-    _holding = true;
-    _progress = 0;
-    const steps = 60;
-    var tick = 0;
+    if (!widget.enabled || _holding || _triggered) return;
+
+    setState(() {
+      _holding = true;
+      _triggered = false;
+      _progress = 0.0;
+    });
+
+    const totalDurationMs = 3000;
+    const intervalMs = 16; // ~60fps smooth updates
+    const totalTicks = totalDurationMs / intervalMs;
+    var currentTick = 0;
+
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      tick += 1;
+    _timer = Timer.periodic(const Duration(milliseconds: intervalMs), (timer) {
+      currentTick++;
       if (!mounted) {
         timer.cancel();
         return;
       }
+
+      final newProgress = (currentTick / totalTicks).clamp(0.0, 1.0);
       setState(() {
-        _progress = tick / steps;
+        _progress = newProgress;
       });
-      if (tick >= steps) {
+
+      if (currentTick >= totalTicks) {
         timer.cancel();
         _holding = false;
+        _triggered = true;
         widget.onTriggered();
-        _reset(afterTrigger: true);
+        _resetAfterTrigger();
       }
     });
   }
 
-  void _reset({bool afterTrigger = false}) {
+  void _resetHold() {
+    if (_triggered) return; // Don't reset prematurely if already triggered
     _timer?.cancel();
     _timer = null;
     if (mounted) {
       setState(() {
         _holding = false;
-        _progress = afterTrigger ? 1 : 0;
+        _progress = 0.0;
       });
-      if (!afterTrigger) {
-        Future.delayed(const Duration(milliseconds: 250), () {
-          if (mounted) {
-            setState(() => _progress = 0);
-          }
+    }
+  }
+
+  void _resetAfterTrigger() {
+    _timer?.cancel();
+    _timer = null;
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (mounted) {
+        setState(() {
+          _holding = false;
+          _triggered = false;
+          _progress = 0.0;
         });
       }
-    }
+    });
   }
 
   @override
@@ -72,74 +93,128 @@ class _HoldPanicButtonState extends State<HoldPanicButton> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => _startHold(),
-      onTapUp: (_) => _reset(),
-      onTapCancel: _reset,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: double.infinity,
-        height: 220,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: widget.enabled
-                ? [const Color(0xFFEF4444), const Color(0xFF991B1B)]
-                : [const Color(0xFF7F1D1D), const Color(0xFF111827)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(36),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.red.withOpacity(0.25),
-              blurRadius: 24,
-              offset: const Offset(0, 12),
+    final remainingSeconds = ((1.0 - _progress) * 3.0).clamp(0.0, 3.0);
+    final isEnabled = widget.enabled;
+
+    return Listener(
+      onPointerDown: (_) => _startHold(),
+      onPointerUp: (_) => _resetHold(),
+      onPointerCancel: (_) => _resetHold(),
+      child: AnimatedScale(
+        scale: _holding ? 0.97 : (_triggered ? 1.03 : 1.0),
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: double.infinity,
+          height: 220,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: _triggered
+                  ? [const Color(0xFF16A34A), const Color(0xFF15803D)]
+                  : isEnabled
+                      ? [
+                          Color.lerp(const Color(0xFFEF4444), const Color(0xFFDC2626), _progress)!,
+                          Color.lerp(const Color(0xFF991B1B), const Color(0xFF7F1D1D), _progress)!,
+                        ]
+                      : [const Color(0xFF374151), const Color(0xFF1F2937)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
             ),
-          ],
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            SizedBox(
-              width: 180,
-              height: 180,
-              child: CircularProgressIndicator(
-                value: _progress,
-                strokeWidth: 10,
-                backgroundColor: Colors.white.withOpacity(0.2),
-                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+            borderRadius: BorderRadius.circular(36),
+            boxShadow: [
+              BoxShadow(
+                color: _triggered
+                    ? Colors.green.withOpacity(0.5)
+                    : isEnabled
+                        ? Colors.red.withOpacity(0.25 + (_progress * 0.35))
+                        : Colors.black26,
+                blurRadius: _holding ? 32 + (_progress * 16) : 24,
+                spreadRadius: _holding ? 2 + (_progress * 4) : 0,
+                offset: const Offset(0, 12),
               ),
-            ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.warning_amber_rounded,
-                  color: Colors.white,
-                  size: 52,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _holding ? "KEEP HOLDING" : "HOLD 3 SECONDS",
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outer Progress Ring
+              SizedBox(
+                width: 175,
+                height: 175,
+                child: CircularProgressIndicator(
+                  value: _triggered ? 1.0 : _progress,
+                  strokeWidth: _holding ? 12 : 9,
+                  backgroundColor: Colors.white.withOpacity(0.15),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    _triggered ? Colors.white : (isEnabled ? const Color(0xFFFFE4E6) : Colors.white30),
                   ),
                 ),
-                const SizedBox(height: 6),
-                const Text(
-                  "Emergency SOS",
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+              ),
+
+              // Pulse Effect Ring when holding
+              if (_holding)
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 50),
+                  width: 140 + (_progress * 25),
+                  height: 140 + (_progress * 25),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.05 + (_progress * 0.1)),
                   ),
                 ),
-              ],
-            ),
-          ],
+
+              // Center Content & Live Feedback
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: _triggered
+                        ? const Icon(
+                            Icons.check_circle_rounded,
+                            key: ValueKey('check'),
+                            color: Colors.white,
+                            size: 56,
+                          )
+                        : Icon(
+                            _holding ? Icons.error_rounded : Icons.warning_amber_rounded,
+                            key: ValueKey(_holding ? 'holding' : 'idle'),
+                            color: Colors.white,
+                            size: 52,
+                          ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _triggered
+                        ? "SOS SENT!"
+                        : _holding
+                            ? "HOLDING... ${remainingSeconds.toStringAsFixed(1)}s"
+                            : "HOLD 3 SECONDS",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _holding ? 15 : 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _triggered
+                        ? "HELP IS ON THE WAY"
+                        : _holding
+                            ? "${(_progress * 100).toInt()}% COMPLETED"
+                            : "Emergency SOS",
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(_holding ? 0.9 : 0.8),
+                      fontSize: _holding ? 14 : 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
