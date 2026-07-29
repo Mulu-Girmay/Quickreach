@@ -21,7 +21,7 @@ class CitizenCubit extends Cubit<CitizenState> {
     final reporterPhone = await _repository.getReporterPhone();
     final offlineIncidents = await _repository.loadOfflineIncidents();
     final cachedIncidents = await _repository.loadCachedIncidents();
-    final locationReady = await _checkLocationReady();
+    final locationReady = await _checkLocationReady(forceRequest: true);
     final connected = await _isConnected();
 
     emit(
@@ -80,31 +80,16 @@ class CitizenCubit extends Cubit<CitizenState> {
 
   Future<void> triggerPanic() async {
     // Check location permission
-    if (!state.locationReady) {
-      final ready = await _checkLocationReady(forceRequest: true);
+    bool ready = state.locationReady;
+    if (!ready) {
+      ready = await _checkLocationReady(forceRequest: true);
       emit(state.copyWith(locationReady: ready));
-      if (!ready) {
-        emit(
-          state.copyWith(
-            transientMessage:
-                "Location access is required so we can store GPS offline.",
-          ),
-        );
-        return;
-      }
     }
 
-    // Get GPS position
+    // Get GPS position with fallback
     final position = await _repository.captureLocation();
-    if (position == null) {
-      emit(
-        state.copyWith(
-          transientMessage:
-              "We could not capture your location. Please enable GPS and try again.",
-        ),
-      );
-      return;
-    }
+    final double lat = position?.latitude ?? 0.0;
+    final double lng = position?.longitude ?? 0.0;
 
     // Get reporter phone
     final reporterPhone = await _flushReporterPhone();
@@ -121,8 +106,8 @@ class CitizenCubit extends Cubit<CitizenState> {
     // Create local incident
     final incident = await _repository.createLocalIncident(
       type: state.selectedType,
-      lat: position.latitude,
-      lng: position.longitude,
+      lat: lat,
+      lng: lng,
       reporterPhone: reporterPhone,
       description: state.description.trim().isEmpty
           ? "Citizen SOS raised from Flutter app"

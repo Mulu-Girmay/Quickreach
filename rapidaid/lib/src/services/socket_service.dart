@@ -1,6 +1,7 @@
 // lib/services/socket_service.dart
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:rapidaid/src/config/app_config.dart';
 import 'dart:async';
 
 class SocketService {
@@ -41,10 +42,7 @@ class SocketService {
       _currentRole = prefs.getString('user_role') ?? 'citizen';
       _currentIncidentId = prefs.getString('active_incident_id');
 
-      final apiUrl = const String.fromEnvironment(
-        'QUICKREACH_API_URL',
-        defaultValue: 'http://10.0.2.2:3000',
-      );
+      final apiUrl = AppConfig.apiBaseUrl;
 
       print('🔌 Connecting to socket at: $apiUrl');
       print('👤 Role: $_currentRole');

@@ -93,7 +93,7 @@ class _CitizenHomePageState extends State<CitizenHomePage> {
                     ),
                     const SizedBox(height: 18),
                     HoldPanicButton(
-                      enabled: state.locationReady,
+                      enabled: true,
                       onTriggered: () =>
                           context.read<CitizenCubit>().triggerPanic(),
                     ),
