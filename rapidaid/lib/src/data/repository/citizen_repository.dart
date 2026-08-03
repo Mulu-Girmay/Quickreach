@@ -117,6 +117,7 @@ class CitizenRepository {
             "lng": lng,
             "reporter_phone": reporterPhone,
             "description": description,
+            "source": "mobile",
             "offline_created": offlineCreated,
             "client_created_at": now.toIso8601String(),
             "client_request_id": localId,
@@ -138,6 +139,66 @@ class CitizenRepository {
 
   Future<List<CachedIncidentRecord>> loadCachedIncidents() {
     return _db.listCachedIncidents();
+  }
+
+  Future<Map<String, dynamic>> fetchIncidentDetails(String incidentId) async {
+    final response = await _dio.get(
+      "/api/incidents/$incidentId",
+      options: Options(headers: {"x-incident-token": incidentId}),
+    );
+
+    final Map<String, dynamic> responseData =
+        response.data as Map<String, dynamic>;
+    final Map<String, dynamic> incident;
+
+    if (responseData.containsKey("incident") &&
+        responseData["incident"] is Map) {
+      incident = Map<String, dynamic>.from(responseData["incident"] as Map);
+    } else {
+      incident = Map<String, dynamic>.from(responseData);
+    }
+
+    return incident;
+  }
+
+  Future<List<Map<String, dynamic>>> fetchIncidentMessages(
+    String incidentId,
+  ) async {
+    final response = await _dio.get(
+      "/api/messages/$incidentId",
+      options: Options(headers: {"x-incident-token": incidentId}),
+    );
+
+    final Map<String, dynamic> responseData =
+        response.data as Map<String, dynamic>;
+    final rawMessages = responseData["messages"];
+    if (rawMessages is! List) {
+      return [];
+    }
+
+    return rawMessages
+        .whereType<Map>()
+        .map((message) => Map<String, dynamic>.from(message))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> sendIncidentMessage({
+    required String incidentId,
+    required String message,
+    String sender = "citizen",
+  }) async {
+    final response = await _dio.post(
+      "/api/messages",
+      data: {"incident_id": incidentId, "sender": sender, "message": message},
+      options: Options(headers: {"x-incident-token": incidentId}),
+    );
+
+    final responseData = response.data;
+    if (responseData is Map<String, dynamic>) {
+      return responseData;
+    }
+
+    return Map<String, dynamic>.from(responseData as Map);
   }
 
   Future<void> cancelIncident(String localId) async {
@@ -211,6 +272,13 @@ class CitizenRepository {
       );
 
       await _db.upsertCachedIncident(cached);
+      await _db.syncIncidentFromServer(
+        localId: cached.localId,
+        serverIncidentId: cached.serverIncidentId,
+        status: cached.status,
+        etaMinutes: cached.etaMinutes,
+        updatedAt: cached.updatedAt,
+      );
       await _db.markIncidentSent(
         localId: cached.localId,
         serverIncidentId: cached.serverIncidentId,

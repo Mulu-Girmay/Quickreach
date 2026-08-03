@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 import 'package:rapidaid/src/data/models/incident_models.dart';
 import 'package:rapidaid/src/features/citizen/citizen_state.dart';
+import 'citizen_emergency_tools_sheet.dart';
+import 'citizen_live_status_page.dart';
 import 'citizen_cubit.dart';
 import '../widgets/hold_panic_button.dart';
 
@@ -16,6 +18,8 @@ class CitizenHomePage extends StatefulWidget {
 class _CitizenHomePageState extends State<CitizenHomePage> {
   final _phoneController = TextEditingController();
   final _descriptionController = TextEditingController();
+  int _selectedIndex = 0;
+  String? _lastAcceptedStatus;
 
   @override
   void dispose() {
@@ -33,7 +37,8 @@ class _CitizenHomePageState extends State<CitizenHomePage> {
     return BlocConsumer<CitizenCubit, CitizenState>(
       listenWhen: (previous, current) =>
           previous.transientMessage != current.transientMessage ||
-          previous.cachedIncidents.length != current.cachedIncidents.length,
+          previous.cachedIncidents != current.cachedIncidents ||
+          previous.activeLocalId != current.activeLocalId,
       listener: (context, state) {
         if (state.transientMessage != null) {
           ScaffoldMessenger.of(context)
@@ -44,6 +49,25 @@ class _CitizenHomePageState extends State<CitizenHomePage> {
                 behavior: SnackBarBehavior.floating,
               ),
             );
+        }
+
+        final currentAccepted = _currentAcceptedIncident(state: state);
+        final currentStatus = currentAccepted?.status;
+
+        if (currentStatus != null && currentStatus != _lastAcceptedStatus) {
+          _lastAcceptedStatus = currentStatus;
+        }
+
+        if (currentStatus == 'Dispatched' && _selectedIndex != 1) {
+          setState(() => _selectedIndex = 1);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Dispatcher accepted your SOS. Opening live status.',
+              ),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         }
       },
       builder: (context, state) {
@@ -58,64 +82,374 @@ class _CitizenHomePageState extends State<CitizenHomePage> {
 
         return Scaffold(
           backgroundColor: const Color(0xFF020617),
+          floatingActionButton: _ChatFab(
+            onPressed: () {
+              final incident = context
+                  .read<CitizenCubit>()
+                  .activeSyncedIncident;
+              showCitizenEmergencyToolsSheet(
+                context: context,
+                repository: context.read<CitizenCubit>().repository,
+                incident: incident,
+                initialTabIndex: 1,
+              );
+            },
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _selectedIndex,
+            onDestinationSelected: (index) {
+              setState(() => _selectedIndex = index);
+            },
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.home_outlined),
+                selectedIcon: Icon(Icons.home),
+                label: 'SOS',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.map_outlined),
+                selectedIcon: Icon(Icons.map),
+                label: 'Live',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.history_outlined),
+                selectedIcon: Icon(Icons.history),
+                label: 'History',
+              ),
+            ],
+          ),
           body: SafeArea(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Color(0xFF020617),
-                    Color(0xFF111827),
-                    Color(0xFF1E293B),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: [
+                _DashboardTab(
+                  state: state,
+                  phoneController: _phoneController,
+                  descriptionController: _descriptionController,
+                  onPhoneChanged: (value) =>
+                      context.read<CitizenCubit>().setReporterPhone(value),
+                  onDescriptionChanged: (value) =>
+                      context.read<CitizenCubit>().setDescription(value),
+                  onHoldTriggered: () =>
+                      context.read<CitizenCubit>().triggerPanic(),
+                  onCancel: (localId) =>
+                      context.read<CitizenCubit>().cancelIncident(localId),
+                  formatDate: _formatDate,
+                  onOpenLive: () => setState(() => _selectedIndex = 1),
                 ),
-              ),
-              child: RefreshIndicator(
-                onRefresh: () =>
-                    context.read<CitizenCubit>().refreshFromServer(),
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
-                  children: [
-                    _Header(state: state),
-                    const SizedBox(height: 18),
-                    if (!state.connected) _SignalBanner(state: state),
-                    if (state.showUssdHint) _UssdHintBanner(),
-                    const SizedBox(height: 18),
-                    _PanicPanel(
-                      state: state,
-                      phoneController: _phoneController,
-                      descriptionController: _descriptionController,
-                      onPhoneChanged: (value) =>
-                          context.read<CitizenCubit>().setReporterPhone(value),
-                      onDescriptionChanged: (value) =>
-                          context.read<CitizenCubit>().setDescription(value),
-                    ),
-                    const SizedBox(height: 18),
-                    HoldPanicButton(
-                      enabled: true,
-                      onTriggered: () =>
-                          context.read<CitizenCubit>().triggerPanic(),
-                    ),
-                    const SizedBox(height: 18),
-                    _ActiveIncidentCard(
-                      state: state,
-                      onCancel: (localId) =>
-                          context.read<CitizenCubit>().cancelIncident(localId),
-                    ),
-                    const SizedBox(height: 18),
-                    _OfflineQueue(state: state),
-                    const SizedBox(height: 18),
-                    _CachedIncidents(state: state, formatDate: _formatDate),
-                    const SizedBox(height: 18),
-                    _Footer(state: state),
-                  ],
+                CitizenLiveStatusPage(
+                  repository: context.read<CitizenCubit>().repository,
+                  incident: context.read<CitizenCubit>().activeSyncedIncident,
                 ),
-              ),
+                _HistoryTab(state: state, formatDate: _formatDate),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+
+  CachedIncidentRecord? _currentAcceptedIncident({
+    required CitizenState state,
+  }) {
+    final active = state.activeLocalId;
+    if (active != null) {
+      for (final incident in state.cachedIncidents) {
+        if (incident.localId == active) {
+          return incident;
+        }
+      }
+    }
+
+    for (final incident in state.cachedIncidents) {
+      if (incident.status == 'Dispatched' || incident.status == 'Resolved') {
+        return incident;
+      }
+    }
+
+    return state.cachedIncidents.isNotEmpty
+        ? state.cachedIncidents.first
+        : null;
+  }
+}
+
+class _DashboardTab extends StatelessWidget {
+  const _DashboardTab({
+    required this.state,
+    required this.phoneController,
+    required this.descriptionController,
+    required this.onPhoneChanged,
+    required this.onDescriptionChanged,
+    required this.onHoldTriggered,
+    required this.onCancel,
+    required this.formatDate,
+    required this.onOpenLive,
+  });
+
+  final CitizenState state;
+  final TextEditingController phoneController;
+  final TextEditingController descriptionController;
+  final ValueChanged<String> onPhoneChanged;
+  final ValueChanged<String> onDescriptionChanged;
+  final VoidCallback onHoldTriggered;
+  final ValueChanged<String> onCancel;
+  final String Function(DateTime) formatDate;
+  final VoidCallback onOpenLive;
+
+  @override
+  Widget build(BuildContext context) {
+    final liveIncident = _findAcceptedIncident(state);
+    final dispatcherAccepted = liveIncident != null;
+    final currentIncident = _findCurrentIncident(state);
+
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF020617), Color(0xFF111827), Color(0xFF1E293B)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: RefreshIndicator(
+        onRefresh: () => context.read<CitizenCubit>().refreshFromServer(),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
+          children: [
+            _Header(state: state),
+            const SizedBox(height: 18),
+            if (!state.connected) _SignalBanner(state: state),
+            if (state.showUssdHint) _UssdHintBanner(),
+            if (dispatcherAccepted) ...[
+              const SizedBox(height: 14),
+              _DispatcherAcceptedBanner(onOpenLive: onOpenLive),
+            ],
+            const SizedBox(height: 18),
+            _PanicPanel(
+              state: state,
+              phoneController: phoneController,
+              descriptionController: descriptionController,
+              onPhoneChanged: onPhoneChanged,
+              onDescriptionChanged: onDescriptionChanged,
+            ),
+            const SizedBox(height: 18),
+            HoldPanicButton(enabled: true, onTriggered: onHoldTriggered),
+            const SizedBox(height: 18),
+            _ActiveIncidentCard(state: state, onCancel: onCancel),
+            const SizedBox(height: 18),
+            if (currentIncident != null) ...[
+              _CurrentIncidentSummaryCard(
+                incident: currentIncident,
+                formatDate: formatDate,
+              ),
+              const SizedBox(height: 18),
+            ],
+            const SizedBox(height: 18),
+            _Footer(state: state),
+          ],
+        ),
+      ),
+    );
+  }
+
+  CachedIncidentRecord? _findAcceptedIncident(CitizenState state) {
+    final active = state.activeLocalId;
+    if (active != null) {
+      for (final incident in state.cachedIncidents) {
+        if (incident.localId == active &&
+            (incident.status == 'Dispatched' ||
+                incident.status == 'Resolved')) {
+          return incident;
+        }
+      }
+    }
+
+    for (final incident in state.cachedIncidents) {
+      if (incident.status == 'Dispatched' || incident.status == 'Resolved') {
+        return incident;
+      }
+    }
+
+    return null;
+  }
+
+  CachedIncidentRecord? _findCurrentIncident(CitizenState state) {
+    final active = state.activeLocalId;
+    if (active != null) {
+      for (final incident in state.cachedIncidents) {
+        if (incident.localId == active) {
+          return incident;
+        }
+      }
+    }
+
+    for (final incident in state.cachedIncidents) {
+      if (incident.status == 'Dispatched' || incident.status == 'Resolved') {
+        return incident;
+      }
+    }
+
+    return null;
+  }
+}
+
+class _HistoryTab extends StatelessWidget {
+  const _HistoryTab({required this.state, required this.formatDate});
+
+  final CitizenState state;
+  final String Function(DateTime) formatDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF020617), Color(0xFF111827), Color(0xFF1E293B)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 28),
+        children: [
+          const _HistoryHeader(),
+          const SizedBox(height: 14),
+          _OfflineQueue(state: state),
+          const SizedBox(height: 18),
+          _CachedIncidents(state: state, formatDate: formatDate),
+        ],
+      ),
+    );
+  }
+}
+
+class _HistoryHeader extends StatelessWidget {
+  const _HistoryHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Text(
+      'Incident History',
+      style: TextStyle(
+        color: Colors.white,
+        fontSize: 24,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+}
+
+class _CurrentIncidentSummaryCard extends StatelessWidget {
+  const _CurrentIncidentSummaryCard({
+    required this.incident,
+    required this.formatDate,
+  });
+
+  final CachedIncidentRecord incident;
+  final String Function(DateTime) formatDate;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF111827),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Current Incident Snapshot',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${incident.type} • ${incident.status}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Updated ${formatDate(incident.updatedAt)}',
+            style: TextStyle(color: Colors.white.withOpacity(0.65)),
+          ),
+          if (incident.etaMinutes != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              'ETA: ${incident.etaMinutes} mins',
+              style: const TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DispatcherAcceptedBanner extends StatelessWidget {
+  const _DispatcherAcceptedBanner({required this.onOpenLive});
+
+  final VoidCallback onOpenLive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3B1D1D),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.redAccent.withOpacity(0.25)),
+      ),
+      child: Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Dispatcher accepted your SOS. Open Live to see status and map.',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          OutlinedButton(
+            onPressed: onOpenLive,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white24),
+            ),
+            child: const Text('Live'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatFab extends StatelessWidget {
+  const _ChatFab({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return FloatingActionButton.extended(
+      onPressed: onPressed,
+      backgroundColor: Colors.redAccent,
+      foregroundColor: Colors.white,
+      icon: const Icon(Icons.chat_bubble_outline),
+      label: const Text('Chat'),
     );
   }
 }

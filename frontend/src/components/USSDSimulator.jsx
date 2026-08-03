@@ -71,6 +71,7 @@ export const USSDSimulator = () => {
           lng,
           reporter_phone: `USSD +251 (${subCity})`,
           triage_score: triageScore,
+          source: "ussd",
         },
       });
     } catch (err) {

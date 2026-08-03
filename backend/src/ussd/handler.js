@@ -108,6 +108,7 @@ Choose Location:
             session.data,
             phoneNumber,
             sessionId,
+            "ussd",
           );
           response = `END Help is coming from ${result.nearestFacility}. Reference: #QR-${result.incidentId.slice(0, 5)}`;
           await clearSession(sessionId);
@@ -134,7 +135,7 @@ Choose Location:
   res.send(response);
 };
 
-async function triggerEmergency(data, phone, sessionId = null) {
+async function triggerEmergency(data, phone, sessionId = null, source = null) {
   if (data?.client_request_id) {
     const existingClientIncident = await Incident.findOne({
       client_request_id: data.client_request_id,
@@ -201,13 +202,19 @@ async function triggerEmergency(data, phone, sessionId = null) {
 
   // Tag the reporter phone with its channel of origin so dispatchers can
   // tell USSD, native mobile app, and web panic-button reports apart.
-  // The Flutter app generates placeholder identifiers like
-  // "FLUTTER-AB12CD34" when no real phone number is on file yet.
+  // The explicit source wins; we keep the old phone-prefix fallback so older
+  // callers still classify correctly.
+  const normalizedSource = String(source || "")
+    .trim()
+    .toLowerCase();
   let originPrefix = "WEB";
-  if (phone.startsWith("USSD")) {
-    originPrefix = null; // already tagged by the USSD handler
-  } else if (phone.startsWith("FLUTTER-")) {
+
+  if (normalizedSource === "ussd" || phone.startsWith("USSD")) {
+    originPrefix = "USSD";
+  } else if (normalizedSource === "mobile" || phone.startsWith("FLUTTER-")) {
     originPrefix = "MOBILE";
+  } else if (normalizedSource === "web" || normalizedSource === "") {
+    originPrefix = "WEB";
   }
 
   const incident = await Incident.create({

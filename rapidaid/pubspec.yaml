@@ -48,6 +48,13 @@ dependencies:
   # Navigation
   go_router: ^12.0.0
 
+  # External links / dialing
+  url_launcher: ^6.3.0
+
+  # Maps
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.1
+
   json_annotation: ^4.8.1
 
 dev_dependencies:

@@ -228,6 +228,29 @@ class IncidentDatabase {
     );
   }
 
+  Future<void> syncIncidentFromServer({
+    required String localId,
+    required String serverIncidentId,
+    required String status,
+    int? etaMinutes,
+    DateTime? updatedAt,
+  }) async {
+    final db = await database;
+    await db.update(
+      "offline_incidents",
+      {
+        "sync_status": "sent",
+        "status": status,
+        "server_incident_id": serverIncidentId,
+        "eta_minutes": etaMinutes,
+        "updated_at": (updatedAt ?? DateTime.now()).toIso8601String(),
+        "error_message": null,
+      },
+      where: "local_id = ?",
+      whereArgs: [localId],
+    );
+  }
+
   Future<void> upsertCachedIncident(CachedIncidentRecord incident) async {
     final db = await database;
     await db.insert(

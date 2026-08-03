@@ -382,6 +382,7 @@ export const PanicPage = () => {
           lng: location.lng,
           reporter_phone: reporterId,
           description: "Panic Button Pressed",
+          source: "web",
         },
       });
 

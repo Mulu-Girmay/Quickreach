@@ -28,6 +28,7 @@ router.post("/public", incidentCreationLimiter, async (req, res) => {
       lng,
       reporter_phone,
       description,
+      source,
       offline_created = false,
       client_created_at,
       client_request_id,
@@ -44,6 +45,8 @@ router.post("/public", incidentCreationLimiter, async (req, res) => {
         client_request_id,
       },
       reporter_phone,
+      null,
+      source || "web",
     );
 
     // Create an initial citizen message so dispatch chat has a first SOS entry.

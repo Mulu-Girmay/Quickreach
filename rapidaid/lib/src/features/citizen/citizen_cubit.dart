@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:rapidaid/src/features/citizen/citizen_state.dart';
+import '../../data/models/incident_models.dart';
 import '../../data/local/incident_database.dart';
 import '../../data/repository/citizen_repository.dart';
 import '../../services/background_sync.dart';
@@ -16,6 +17,27 @@ class CitizenCubit extends Cubit<CitizenState> {
   Timer? _ussdHintTimer;
   Timer? _releaseTimer;
   Timer? _phoneSaveTimer;
+
+  CitizenRepository get repository => _repository;
+
+  CachedIncidentRecord? get activeSyncedIncident {
+    final activeLocalId = state.activeLocalId;
+    if (activeLocalId != null) {
+      for (final incident in state.cachedIncidents) {
+        if (incident.localId == activeLocalId &&
+            incident.serverIncidentId.isNotEmpty) {
+          return incident;
+        }
+      }
+    }
+
+    for (final incident in state.cachedIncidents) {
+      if (incident.serverIncidentId.isNotEmpty) {
+        return incident;
+      }
+    }
+    return null;
+  }
 
   Future<void> initialize() async {
     final reporterPhone = await _repository.getReporterPhone();
@@ -197,6 +219,16 @@ class CitizenCubit extends Cubit<CitizenState> {
   }
 
   Future<void> refreshFromServer() async {
+    await _syncEverything();
+  }
+
+  Future<void> refreshCurrentIncidentFromServer() async {
+    final incident = activeSyncedIncident;
+    if (incident == null || incident.serverIncidentId.isEmpty) {
+      return;
+    }
+
+    await _repository.refreshCachedIncident(incident.serverIncidentId);
     await _syncEverything();
   }
 
