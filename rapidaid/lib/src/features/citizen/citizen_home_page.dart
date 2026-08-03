@@ -690,25 +690,47 @@ class _ActiveIncidentCard extends StatelessWidget {
     final localId = state.activeLocalId;
     if (localId == null) return const SizedBox.shrink();
 
-    final incident = state.offlineIncidents.firstWhere(
-      (item) => item.localId == localId,
-      orElse: () => state.offlineIncidents.isNotEmpty
-          ? state.offlineIncidents.first
-          : OfflineIncidentRecord(
-              localId: localId,
-              type: state.selectedType,
-              lat: 0,
-              lng: 0,
-              reporterPhone: state.reporterPhone,
-              description: state.description,
-              clientCreatedAt: DateTime.now(),
-              offlineCreated: true,
-              syncStatus: "saved_locally",
-              status: "Saved locally",
-            ),
-    );
+    CachedIncidentRecord? syncedIncident;
+    for (final item in state.cachedIncidents) {
+      if (item.localId == localId && item.serverIncidentId.isNotEmpty) {
+        syncedIncident = item;
+        break;
+      }
+    }
 
-    final canCancel = state.canUndo && incident.syncStatus != "sent";
+    OfflineIncidentRecord? offlineIncident;
+    for (final item in state.offlineIncidents) {
+      if (item.localId == localId) {
+        offlineIncident = item;
+        break;
+      }
+    }
+
+    final canCancel =
+        state.canUndo && (offlineIncident?.syncStatus ?? 'sent') != 'sent';
+    final status =
+        syncedIncident?.status ?? offlineIncident?.status ?? 'Pending';
+    final syncLabel = syncedIncident != null
+        ? 'SERVER SYNCED'
+        : (offlineIncident?.syncStatus ?? 'saved_locally').toUpperCase();
+    final type =
+        syncedIncident?.type ?? offlineIncident?.type ?? state.selectedType;
+    final reporterPhone =
+        syncedIncident?.reporterPhone ??
+        offlineIncident?.reporterPhone ??
+        state.reporterPhone;
+    final description =
+        syncedIncident?.description ??
+        offlineIncident?.description ??
+        state.description;
+    final createdAt =
+        syncedIncident?.clientCreatedAt ??
+        offlineIncident?.clientCreatedAt ??
+        DateTime.now();
+    final isOfflineCreated =
+        syncedIncident?.offlineCreated ??
+        offlineIncident?.offlineCreated ??
+        true;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -730,18 +752,15 @@ class _ActiveIncidentCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              _Pill(
-                label: incident.syncStatus.toUpperCase(),
-                color: Colors.white70,
-              ),
+              _Pill(label: syncLabel, color: Colors.white70),
               const SizedBox(width: 10),
-              if (incident.offlineCreated)
+              if (isOfflineCreated)
                 _Pill(label: "OFFLINE CREATED", color: Colors.redAccent),
             ],
           ),
           const SizedBox(height: 12),
           Text(
-            "${incident.type} SOS • ${incident.reporterPhone}",
+            "$type SOS • $reporterPhone",
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,
@@ -749,7 +768,7 @@ class _ActiveIncidentCard extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            "${incident.description}\nCreated: ${incident.clientCreatedAt.toLocal()}",
+            "$description\nCreated: ${createdAt.toLocal()}",
             style: TextStyle(color: Colors.white.withOpacity(0.7)),
           ),
           const SizedBox(height: 12),
@@ -769,9 +788,7 @@ class _ActiveIncidentCard extends StatelessWidget {
               if (canCancel) const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  incident.syncStatus == "sent"
-                      ? "Sent to dispatch"
-                      : incident.status,
+                  status,
                   textAlign: TextAlign.right,
                   style: const TextStyle(
                     color: Colors.redAccent,
