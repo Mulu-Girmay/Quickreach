@@ -3,12 +3,13 @@ const bcrypt = require("bcryptjs");
 const { Volunteer } = require("../models");
 const { generateToken, authMiddleware } = require("../lib/auth");
 const { requireRoles } = require("../middleware/roles");
+const { registerLimiter, loginLimiter } = require("../middleware/ratelimit");
 
 const router = express.Router();
 
 const SELF_REGISTERABLE_ROLES = ["citizen", "volunteer"];
 
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   try {
     const { name, email, password, role = "volunteer" } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -81,7 +82,7 @@ router.post(
   },
 );
 
-router.post("/login", async (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
 

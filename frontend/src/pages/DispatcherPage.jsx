@@ -603,10 +603,17 @@ export const DispatcherPage = () => {
                           ? "text-red-300 bg-red-900/30 border-red-400/30"
                           : "text-red-300 bg-red-900/30 border-red-400/30",
                       )}
-                      title={`${hosp.name} (${currentCap}/${maxCap})`}
+                      title={`${hosp.name} (${currentCap}/${maxCap})${
+                        hosp.beds_updated_at
+                          ? ` · Updated ${new Date(hosp.beds_updated_at).toLocaleTimeString()}`
+                          : " · Capacity not recently updated"
+                      }`}
                     >
                       Nearest Hospital: {hosp.name}{" "}
                       {maxCap > 0 ? `${currentCap}/${maxCap}` : ""}
+                      {hosp.beds_updated_at ? null : (
+                        <span className="ml-1 text-amber-400" title="Capacity data may be stale">⚠</span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1033,12 +1040,6 @@ export const DispatcherPage = () => {
         )}
       </main>
       <IVRSimulator isOpen={isIVROpen} onClose={() => setIsIVROpen(false)} />
-      <EmergencyChat
-        incidentId={selectedIncidentId}
-        senderType="dispatcher"
-        isOpen={isChatOpen}
-        onClose={() => setIsChatOpen(false)}
-      />
       {isVideoCallOpen && (
         <VideoSOSModal
           onClose={() => setIsVideoCallOpen(false)}

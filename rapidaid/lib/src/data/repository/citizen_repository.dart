@@ -141,10 +141,21 @@ class CitizenRepository {
     return _db.listCachedIncidents();
   }
 
+  Future<String?> getIncidentAccessToken(String incidentId) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('incident_access_token_$incidentId');
+  }
+
+  Future<void> _saveIncidentAccessToken(String incidentId, String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('incident_access_token_$incidentId', token);
+  }
+
   Future<Map<String, dynamic>> fetchIncidentDetails(String incidentId) async {
+    final token = await getIncidentAccessToken(incidentId) ?? incidentId;
     final response = await _dio.get(
       "/api/incidents/$incidentId",
-      options: Options(headers: {"x-incident-token": incidentId}),
+      options: Options(headers: {"x-incident-token": token}),
     );
 
     final Map<String, dynamic> responseData =
@@ -164,9 +175,10 @@ class CitizenRepository {
   Future<List<Map<String, dynamic>>> fetchIncidentMessages(
     String incidentId,
   ) async {
+    final token = await getIncidentAccessToken(incidentId) ?? incidentId;
     final response = await _dio.get(
       "/api/messages/$incidentId",
-      options: Options(headers: {"x-incident-token": incidentId}),
+      options: Options(headers: {"x-incident-token": token}),
     );
 
     final Map<String, dynamic> responseData =
@@ -187,10 +199,11 @@ class CitizenRepository {
     required String message,
     String sender = "citizen",
   }) async {
+    final token = await getIncidentAccessToken(incidentId) ?? incidentId;
     final response = await _dio.post(
       "/api/messages",
       data: {"incident_id": incidentId, "sender": sender, "message": message},
-      options: Options(headers: {"x-incident-token": incidentId}),
+      options: Options(headers: {"x-incident-token": token}),
     );
 
     final responseData = response.data;
@@ -240,9 +253,10 @@ class CitizenRepository {
 
   Future<void> refreshCachedIncident(String serverIncidentId) async {
     try {
+      final token = await getIncidentAccessToken(serverIncidentId) ?? serverIncidentId;
       final response = await _dio.get(
         "/api/incidents/$serverIncidentId",
-        options: Options(headers: {"x-incident-token": serverIncidentId}),
+        options: Options(headers: {"x-incident-token": token}),
       );
 
       // Fixed: Properly extract incident data from response
@@ -327,6 +341,13 @@ class CitizenRepository {
 
       final serverIncidentId = (incident["_id"] ?? incident["id"] ?? "")
           .toString();
+
+      // Save the access token so all future REST calls and socket joins use it.
+      final accessToken = (data["incident_access_token"] ?? "").toString();
+      if (serverIncidentId.isNotEmpty && accessToken.isNotEmpty) {
+        await _saveIncidentAccessToken(serverIncidentId, accessToken);
+      }
+
       final clientCreatedAt =
           DateTime.tryParse(payload["client_created_at"]?.toString() ?? "") ??
           DateTime.now();

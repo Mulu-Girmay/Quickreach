@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   UserCheck,
@@ -215,9 +215,7 @@ export const VolunteerMode = () => {
     fetchNearbyIncidents();
 
     const socket = connectSocket();
-    const refreshNearbyIncidents = () => {
-      fetchNearbyIncidents();
-    };
+    const refreshNearbyIncidents = () => fetchNearbyIncidents();
 
     socket.on("new-incident", refreshNearbyIncidents);
     socket.on("incident-updated", refreshNearbyIncidents);
@@ -226,7 +224,13 @@ export const VolunteerMode = () => {
       socket.off("new-incident", refreshNearbyIncidents);
       socket.off("incident-updated", refreshNearbyIncidents);
     };
-  }, [isOnline, location]);
+  }, [isOnline]); // location intentionally excluded — socket setup doesn't depend on it
+
+  // Separate effect: re-fetch nearby incidents when location changes (no socket churn)
+  useEffect(() => {
+    if (!isOnline || !location) return;
+    fetchNearbyIncidents();
+  }, [location]);
 
   // Update time
   useEffect(() => {
@@ -258,11 +262,6 @@ export const VolunteerMode = () => {
               <span className="text-xs text-[#94A3B8]">Volunteer</span>
             </div>
           </div>
-          {approvalMessage && (
-            <div className="mb-6 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 text-sm text-amber-300">
-              {approvalMessage}
-            </div>
-          )}
 
           <div className="flex items-center gap-3">
             <div className="text-right hidden sm:block">
@@ -303,6 +302,11 @@ export const VolunteerMode = () => {
             </span>
           </div>
         </div>
+        {approvalMessage && (
+          <div className="mt-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-3 text-sm text-amber-300">
+            {approvalMessage}
+          </div>
+        )}
       </motion.header>
 
       {/* Stats Row */}

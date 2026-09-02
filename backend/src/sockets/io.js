@@ -52,14 +52,21 @@ const init = (server, allowedOrigins) => {
           return ack({ ok: true });
         }
 
-        if (!incidentToken || String(incidentToken) !== String(incidentId)) {
-          return ack({ ok: false, error: "Invalid incident token" });
+        if (!incidentToken) {
+          return ack({ ok: false, error: "Incident token required" });
         }
 
         try {
-          const exists = await Incident.exists({ _id: incidentId });
-          if (!exists) {
+          const incident = await Incident.findById(incidentId).select("access_token");
+          if (!incident) {
             return ack({ ok: false, error: "Incident not found" });
+          }
+          // Real token wins; legacy incidents (no access_token) fall back to ID comparison.
+          const valid = incident.access_token
+            ? String(incidentToken) === String(incident.access_token)
+            : String(incidentToken) === String(incidentId);
+          if (!valid) {
+            return ack({ ok: false, error: "Invalid incident token" });
           }
         } catch (err) {
           return ack({ ok: false, error: "Invalid incident id" });

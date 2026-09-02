@@ -19,7 +19,7 @@ const processDispatchSweep = async () => {
   let sent = 0;
   for (const incident of incidents) {
     try {
-      const phone = incident.reporter_phone.replace("USSD ", "");
+      const phone = incident.reporter_phone.replace(/^(USSD|WEB|MOBILE)\s+/i, "");
       const message = `QuickReach: Dispatch confirmed. The ${incident.type} team is moving toward you. 2km remaining.`;
       await sendSMS(phone, message);
 

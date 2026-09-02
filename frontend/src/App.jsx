@@ -70,7 +70,7 @@ function App() {
                   }
                 />
               </Routes>
-
+              {/* Must be inside Router AND AuthProvider to use useAuth + useLocation */}
               <ConditionalUSSDSimulator />
             </div>
           </Router>

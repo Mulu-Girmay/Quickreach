@@ -44,10 +44,6 @@ class SocketService {
 
       final apiUrl = AppConfig.apiBaseUrl;
 
-      print('🔌 Connecting to socket at: $apiUrl');
-      print('👤 Role: $_currentRole');
-      print('🆔 Incident: $_currentIncidentId');
-
       _socket = IO.io(
         apiUrl,
         IO.OptionBuilder()
@@ -124,7 +120,6 @@ class SocketService {
   }
 
   void joinIncidentRoom(String incidentId) async {
-    // Clean up listeners from the previous incident to prevent leaks.
     if (_currentIncidentId != null && _currentIncidentId != incidentId) {
       _socket?.off('incident-$_currentIncidentId');
       _socket?.off('message-$_currentIncidentId');
@@ -132,25 +127,33 @@ class SocketService {
 
     _currentIncidentId = incidentId;
     if (_socket != null && _isConnected) {
-      // Backend expects camelCase 'incidentId'. Anonymous citizens
-      // must also pass 'token' (== incidentId) for access verification.
+      final prefs = await SharedPreferences.getInstance();
+      final accessToken =
+          prefs.getString('incident_access_token_$incidentId') ?? incidentId;
+
       _socket!.emit('join-incident', {
         'incidentId': incidentId,
-        'token': incidentId,
+        'token': accessToken,
       });
 
       // Set up listeners for this incident
       _socket!.on('incident-$incidentId', (data) {
-        print('📌 Specific incident update: $data');
         _incidentController.add({'type': 'specific', 'data': data});
       });
 
       _socket!.on('message-$incidentId', (data) {
-        print('💬 New incident message: $data');
         _messageController.add(data);
       });
 
-      final prefs = await SharedPreferences.getInstance();
+      // Also listen on the backend's room-scoped event names
+      _socket!.on('incident:$incidentId', (data) {
+        _incidentController.add({'type': 'specific', 'data': data});
+      });
+
+      _socket!.on('message:$incidentId', (data) {
+        _messageController.add(data);
+      });
+
       await prefs.setString('active_incident_id', incidentId);
       print('👤 Joined incident room: $incidentId');
     }
@@ -184,10 +187,6 @@ class SocketService {
     }
   }
 
-  /// NOTE: The backend does not handle the 'send-message' socket event.
-  /// Messages should be sent via the REST API: POST /api/messages.
-  /// This method is retained for forward-compatibility but is currently a no-op
-  /// on the server side.
   void sendIncidentMessage(String incidentId, String message, String sender) {
     if (_socket != null && _isConnected) {
       final messageData = {

@@ -59,8 +59,10 @@ router.patch(
       if (lat !== undefined) update.lat = Number(lat);
       if (lng !== undefined) update.lng = Number(lng);
       if (capacity !== undefined) update.capacity = Number(capacity);
-      if (available_beds !== undefined)
+      if (available_beds !== undefined) {
         update.available_beds = Number(available_beds);
+        update.beds_updated_at = new Date();
+      }
       if (contact !== undefined) update.contact = contact;
 
       const hospital = await Hospital.findByIdAndUpdate(req.params.id, update, {

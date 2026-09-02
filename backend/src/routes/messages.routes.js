@@ -2,7 +2,7 @@ const express = require("express");
 const { Incident, Message } = require("../models");
 const { requireIncidentAccess } = require("../middleware/incidentAccess");
 const { normalizeIncidentMessageRole } = require("../utils/normalize");
-const { getIO } = require("../sockets/io");
+const { emitToTeamAndIncident, emitToTeam } = require("../sockets/io");
 
 const router = express.Router();
 
@@ -53,10 +53,11 @@ router.post("/", requireIncidentAccess, async (req, res) => {
       message,
     });
 
-    const io = getIO();
-    io.emit(`message-${incident_id}`, newMessage);
+    // Emit only to the team rooms + the specific incident room,
+    // not to every connected socket globally.
+    emitToTeamAndIncident(incident_id, `message-${incident_id}`, newMessage);
     if (requestedSender === "volunteer") {
-      io.emit("volunteer-message", newMessage);
+      emitToTeam("volunteer-message", newMessage);
     }
 
     res.json(newMessage);

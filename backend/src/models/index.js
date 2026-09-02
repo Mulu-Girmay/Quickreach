@@ -4,7 +4,7 @@ const IncidentSchema = new mongoose.Schema({
   type: { type: String, required: true },
   lat: { type: Number, required: true },
   lng: { type: Number, required: true },
-  status: { type: String, default: "Pending" },
+  status: { type: String, enum: ["Pending", "Dispatched", "Resolved"], default: "Pending" },
   reporter_phone: { type: String, required: true },
   description: String,
   session_id: String,
@@ -12,7 +12,7 @@ const IncidentSchema = new mongoose.Schema({
   offline_created: { type: Boolean, default: false },
   client_created_at: { type: Date },
   hospital_id: { type: mongoose.Schema.Types.ObjectId, ref: "Hospital" },
-  triage_score: Number,
+  triage_score: { type: Number, default: null },
   notified_dispatched: { type: Boolean, default: false },
   // Tracks which single volunteer/dispatcher accepted this incident. Null
   // means unassigned. Set atomically (see volunteer-accept route) so two
@@ -24,6 +24,7 @@ const IncidentSchema = new mongoose.Schema({
   },
   assigned_volunteer_name: { type: String, default: null },
   assigned_at: { type: Date, default: null },
+  access_token: { type: String, index: true, sparse: true },
   created_at: { type: Date, default: Date.now },
   updated_at: { type: Date, default: Date.now },
 });
@@ -76,6 +77,7 @@ const HospitalSchema = new mongoose.Schema({
   capacity: Number,
   available_beds: Number,
   contact: String,
+  beds_updated_at: { type: Date, default: null },
   created_at: { type: Date, default: Date.now },
 });
 

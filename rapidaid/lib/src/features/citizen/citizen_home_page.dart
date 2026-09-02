@@ -137,9 +137,14 @@ class _CitizenHomePageState extends State<CitizenHomePage> {
                   formatDate: _formatDate,
                   onOpenLive: () => setState(() => _selectedIndex = 1),
                 ),
-                CitizenLiveStatusPage(
-                  repository: context.read<CitizenCubit>().repository,
-                  incident: context.read<CitizenCubit>().activeSyncedIncident,
+                BlocBuilder<CitizenCubit, CitizenState>(
+                  buildWhen: (prev, curr) =>
+                      prev.cachedIncidents != curr.cachedIncidents ||
+                      prev.activeLocalId != curr.activeLocalId,
+                  builder: (context, state) => CitizenLiveStatusPage(
+                    repository: context.read<CitizenCubit>().repository,
+                    incident: context.read<CitizenCubit>().activeSyncedIncident,
+                  ),
                 ),
                 _HistoryTab(state: state, formatDate: _formatDate),
               ],

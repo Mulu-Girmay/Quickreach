@@ -105,7 +105,6 @@ class OfflineIncidentRecord {
     );
   }
 
-  // Helper methods
   static double _toDouble(dynamic value) {
     if (value == null) return 0.0;
     if (value is double) return value;
@@ -130,7 +129,6 @@ class OfflineIncidentRecord {
     return false;
   }
 
-  // For NON-nullable DateTime (returns DateTime, never null)
   static DateTime _toDateTimeNonNull(dynamic value, DateTime defaultValue) {
     if (value == null) return defaultValue;
     if (value is DateTime) return value;
@@ -140,7 +138,6 @@ class OfflineIncidentRecord {
     return defaultValue;
   }
 
-  // For NULLABLE DateTime (returns DateTime? which can be null)
   static DateTime? _toDateTimeNullable(dynamic value) {
     if (value == null) return null;
     if (value is DateTime) return value;
@@ -151,7 +148,6 @@ class OfflineIncidentRecord {
   }
 }
 
-// Fixed SyncQueueRecord
 class SyncQueueRecord {
   SyncQueueRecord({
     required this.queueId,

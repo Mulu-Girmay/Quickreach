@@ -60,14 +60,13 @@ export const PanicPage = () => {
   const [responderLocation, setResponderLocation] = useState(null);
   const [eta, setEta] = useState(null);
   const [distance, setDistance] = useState(null);
-  const [volunteerName, setVolunteerName] = useState("Abebe Tadesse");
-  const [hospitalName, setHospitalName] = useState("St. Paul Hospital");
-  const [referenceNumber, setReferenceNumber] = useState("QR-82918");
+  const [volunteerName, setVolunteerName] = useState(null);
+  const [hospitalName, setHospitalName] = useState(null);
   const [timeline, setTimeline] = useState([
-    { label: "Alert Sent", completed: true },
-    { label: "Dispatcher Assigned", completed: true },
-    { label: "Volunteer Accepted", completed: true },
-    { label: "En Route", completed: false, active: true },
+    { label: "Alert Sent", completed: false },
+    { label: "Dispatcher Assigned", completed: false },
+    { label: "Volunteer Accepted", completed: false },
+    { label: "En Route", completed: false, active: false },
     { label: "Arrived", completed: false },
     { label: "Resolved", completed: false },
   ]);
@@ -109,11 +108,13 @@ export const PanicPage = () => {
     setIsCitizenChatOpen(false);
     setEta(null);
     setDistance(null);
+    setVolunteerName(null);
+    setHospitalName(null);
     setTimeline([
-      { label: "Alert Sent", completed: true },
-      { label: "Dispatcher Assigned", completed: true },
-      { label: "Volunteer Accepted", completed: true },
-      { label: "En Route", completed: false, active: true },
+      { label: "Alert Sent", completed: false },
+      { label: "Dispatcher Assigned", completed: false },
+      { label: "Volunteer Accepted", completed: false },
+      { label: "En Route", completed: false, active: false },
       { label: "Arrived", completed: false },
       { label: "Resolved", completed: false },
     ]);
@@ -162,28 +163,22 @@ export const PanicPage = () => {
       lastIncidentStatusRef.current = newStatus;
 
       if (newStatus === "Dispatched" && previousStatus !== "Dispatched") {
+        // Update volunteer name from real incident data
+        if (nextIncident.assigned_volunteer_name) {
+          setVolunteerName(nextIncident.assigned_volunteer_name);
+        }
+
         if (!dispatchSimStartedRef.current) {
           addMessage("🚑 Dispatcher activated your case. Help is on the way.");
           addMessage(
             "📡 Nearest unit dispatched. Unit is en route. Stay calm.",
           );
-          // Update timeline
           setTimeline((prev) => {
-            const newTimeline = [...prev];
-            const enRouteIndex = newTimeline.findIndex(
-              (t) => t.label === "En Route",
-            );
-            if (enRouteIndex !== -1) {
-              newTimeline[enRouteIndex].completed = true;
-              newTimeline[enRouteIndex].active = false;
-            }
-            const arrivedIndex = newTimeline.findIndex(
-              (t) => t.label === "Arrived",
-            );
-            if (arrivedIndex !== -1) {
-              newTimeline[arrivedIndex].active = true;
-            }
-            return newTimeline;
+            const next = [...prev];
+            next[1] = { ...next[1], completed: true, active: false };
+            next[2] = { ...next[2], completed: true, active: false };
+            next[3] = { ...next[3], active: true };
+            return next;
           });
         }
 
@@ -278,9 +273,22 @@ export const PanicPage = () => {
       ]);
     };
 
-    addMessage("🆘 Alert received by dispatch. Standby...");
+    addMessage("🆘 SOS sent. Waiting for a dispatcher to respond...");
     setIncidentStatus(activeIncident.status);
     lastIncidentStatusRef.current = activeIncident.status;
+
+    // Mark "Alert Sent" as done immediately
+    setTimeline((prev) => {
+      const next = [...prev];
+      next[0] = { ...next[0], completed: true };
+      next[1] = { ...next[1], active: true };
+      return next;
+    });
+
+    // Join the incident room so the server pushes events to this citizen socket
+    socket.emit("join-incident", { incidentId, token: incidentToken }, (ack) => {
+      if (!ack?.ok) console.warn("[Socket] join-incident failed:", ack?.error);
+    });
 
     socket.on(`incident-${incidentId}`, handleIncidentChannelUpdate);
     socket.on("incident-updated", handleIncidentChannelUpdate);
@@ -388,7 +396,10 @@ export const PanicPage = () => {
 
       const incidentData = incident.incident || incident;
       if (incidentData._id && !incidentData.id) {
-        incidentData.id = incidentData._id;
+        incidentData.id = String(incidentData._id);
+      }
+      if (incidentData.assigned_volunteer_name) {
+        setVolunteerName(incidentData.assigned_volunteer_name);
       }
       setActiveIncident(incidentData);
       setIncidentAccessToken(incident.incident_access_token || null);
@@ -525,7 +536,7 @@ export const PanicPage = () => {
                       </span>
                       <span className="text-xs text-[#94A3B8]">•</span>
                       <span className="text-xs text-[#94A3B8]">
-                        {referenceNumber}
+                        {activeIncident?.id ? `QR-${String(activeIncident.id).slice(-5).toUpperCase()}` : ""}
                       </span>
                     </div>
                     <div className="mt-3 flex items-center gap-4">
@@ -617,7 +628,7 @@ export const PanicPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-[#94A3B8]">Volunteer</p>
-                      <p className="text-sm font-bold">{volunteerName}</p>
+                      <p className="text-sm font-bold">{volunteerName || "Awaiting assignment..."}</p>
                     </div>
                   </div>
                 </div>
@@ -628,7 +639,7 @@ export const PanicPage = () => {
                     </div>
                     <div>
                       <p className="text-xs text-[#94A3B8]">Hospital</p>
-                      <p className="text-sm font-bold">{hospitalName}</p>
+                      <p className="text-sm font-bold">{hospitalName || "Calculating nearest..."}</p>
                     </div>
                   </div>
                 </div>

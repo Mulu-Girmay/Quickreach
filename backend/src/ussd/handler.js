@@ -6,6 +6,7 @@ const {
 } = require("./sessionManager");
 const { Incident } = require("../models");
 const { findNearestHospital } = require("../services/hospitalRecommendation");
+const crypto = require("crypto");
 
 const ussdHandler = async (req, res) => {
   const { sessionId, phoneNumber, text } = req.body;
@@ -51,11 +52,15 @@ const ussdHandler = async (req, res) => {
             response = `END We are prioritizing your request. A dispatcher will call you shortly.`;
             await clearSession(sessionId);
           } else {
-            await updateSession(sessionId, STATES.START, { fastPath: false });
-            return ussdHandler(
-              { ...req, body: { ...req.body, text: "" } },
-              res,
-            );
+            // User chose "2" (New Emergency) or "0" (Cancel) from the fast-path.
+            // Clear fastPath flag and go directly to the main menu response
+            // instead of recursing — recursion re-enters the fast-path check
+            // if the incident is still Pending, causing infinite recursion.
+            await updateSession(sessionId, STATES.PICK_TYPE, { fastPath: false });
+            response = `CON Welcome to QuickReach Emergency
+1. Medical (Ambulance)
+2. Fire & Rescue
+3. Police`;
           }
         }
         break;
@@ -149,7 +154,7 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
         incidentId: existingClientIncident._id,
         incident: existingClientIncident,
         nearestFacility: "Processing...",
-        incident_access_token: existingClientIncident._id,
+        incident_access_token: existingClientIncident.access_token,
       };
     }
   }
@@ -165,7 +170,7 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
         incidentId: existing._id,
         incident: existing,
         nearestFacility: "Processing...",
-        incident_access_token: existing._id,
+        incident_access_token: existing.access_token,
       };
     }
   }
@@ -217,6 +222,8 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
     originPrefix = "WEB";
   }
 
+  const accessToken = crypto.randomBytes(32).toString("hex");
+
   const incident = await Incident.create({
     type: data.type,
     lat,
@@ -231,6 +238,8 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
       ? new Date(data.client_created_at)
       : undefined,
     client_request_id: data.client_request_id || undefined,
+    access_token: accessToken,
+    triage_score: computeTriageScore(data.type, data.description),
   });
 
   setupEscalationTimeout(incident._id);
@@ -239,18 +248,47 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
     incidentId: incident._id,
     incident,
     nearestFacility: hospitalName,
-    incident_access_token: incident._id,
+    incident_access_token: accessToken,
   };
+}
+
+// Keyword-based triage scorer. Returns 1–5 (5 = most critical).
+function computeTriageScore(type, description) {
+  const text = `${type || ""} ${description || ""}`.toLowerCase();
+  const critical = ["unconscious", "not breathing", "cardiac", "heart attack", "stroke", "severe bleeding", "choking"];
+  const high = ["bleeding", "fire", "trapped", "fracture", "broken", "chest pain", "difficulty breathing"];
+  const medium = ["accident", "injury", "fall", "burn", "police", "security"];
+  if (critical.some((k) => text.includes(k))) return 5;
+  if (high.some((k) => text.includes(k))) return 4;
+  if (medium.some((k) => text.includes(k))) return 3;
+  if (type === "Medical") return 3;
+  if (type === "Fire") return 4;
+  return 2;
 }
 
 function setupEscalationTimeout(incidentId) {
   setTimeout(async () => {
-    const incident = await Incident.findById(incidentId);
+    try {
+      const incident = await Incident.findById(incidentId);
+      if (!incident || incident.status !== "Pending") return;
 
-    if (incident && incident.status === "Pending") {
       console.log(
-        `[ESCALATION] Incident ${incidentId} not acknowledged in 60s. Alerting National Command Center!`,
+        `[ESCALATION] Incident ${incidentId} not acknowledged in 60s.`,
       );
+
+      const { emitPushToEmergencyTeam } = require("../services/pushFanout");
+      await emitPushToEmergencyTeam(
+        {
+          title: "⚠️ Unacknowledged Emergency",
+          body: `${incident.type} incident has been pending for over 60 seconds. Immediate attention required.`,
+          url: "/dispatcher",
+          tag: `escalation-${incidentId}`,
+          data: { incidentId: String(incidentId), status: "Pending" },
+        },
+        { incidentLocation: { lat: incident.lat, lng: incident.lng } },
+      );
+    } catch (err) {
+      console.error("[ESCALATION] Push failed:", err.message);
     }
   }, 60000);
 }
