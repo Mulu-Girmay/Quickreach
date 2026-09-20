@@ -17,17 +17,26 @@ import {
   User,
   Wifi,
   WifiOff,
+  Bus,
 } from "lucide-react";
 import { IncidentMap } from "../components/IncidentMap";
 import { apiFetch } from "../lib/api";
 import { connectSocket } from "../lib/socket";
+import { VolunteerSidebar } from "../components/VolunteerSidebar";
+import { useLocation } from "react-router-dom";
 
 export const VolunteerMode = () => {
+  const routeLocation = useLocation();
+  const isDashboardRoute = routeLocation.pathname === "/volunteer";
+  const isActiveRoute = routeLocation.pathname === "/active" || routeLocation.pathname === "/volunteer/active";
+  const isAllIncidentsRoute = routeLocation.pathname === "/volunteer/incidents";
   const [isOnline, setIsOnline] = useState(false);
   const [nearbyIncidents, setNearbyIncidents] = useState([]);
+  const [allAvailableIncidents, setAllAvailableIncidents] = useState([]);
   const [profile, setProfile] = useState(null);
   const [location, setLocation] = useState(null);
   const [selectedIncident, setSelectedIncident] = useState(null);
+  const [responderProgress, setResponderProgress] = useState(0);
   const [acceptedIncidentIds, setAcceptedIncidentIds] = useState([]);
   const [stats, setStats] = useState({
     alerts: 0,
@@ -36,7 +45,33 @@ export const VolunteerMode = () => {
   });
   const [currentTime, setCurrentTime] = useState(new Date());
   const [approvalMessage, setApprovalMessage] = useState(null);
+  const [locationToast, setLocationToast] = useState(null);
   const lastLocationSyncRef = useRef({ time: 0, lat: null, lng: null });
+  const showLocationToast = (type, message) => {
+    setLocationToast({ type, message });
+    window.setTimeout(() => setLocationToast(null), 1000);
+  };
+
+  useEffect(() => {
+    if (!selectedIncident) {
+      setResponderProgress(0);
+      return undefined;
+    }
+    setResponderProgress(0);
+    const timer = window.setInterval(() => {
+      setResponderProgress((value) => (value >= 100 ? 100 : value + 2));
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [selectedIncident?.id, selectedIncident?._id]);
+
+  useEffect(() => {
+    const targetId = routeLocation.pathname.endsWith("/active")
+      ? "active-incidents"
+      : routeLocation.pathname.endsWith("/incidents")
+        ? "all-incidents"
+        : "volunteer-dashboard";
+    requestAnimationFrame(() => document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [routeLocation.pathname]);
 
   const handleToggleOnline = async () => {
     const nextValue = !isOnline;
@@ -86,30 +121,12 @@ export const VolunteerMode = () => {
         (i) => i.status === "Pending",
       );
 
-      if (location) {
-        const withDist = allPending
-          .map((inc) => {
-            const d = calculateDistance(
-              location.lat,
-              location.lng,
-              inc.lat,
-              inc.lng,
-            );
-            return { ...inc, distance: d };
-          })
-          .filter((inc) => inc.distance <= 10)
-          .sort((a, b) => a.distance - b.distance);
-
-        setNearbyIncidents(withDist);
-        // Update stats
-        setStats({
-          alerts: withDist.length,
-          accepted: acceptedIncidentIds.length,
-          responseRate: withDist.length > 0 ? 94 : 0,
-        });
-      } else {
-        setNearbyIncidents(allPending);
-      }
+      setAllAvailableIncidents(allPending);
+      const matched = location
+        ? allPending.map((inc) => ({ ...inc, distance: calculateDistance(location.lat, location.lng, inc.lat, inc.lng) })).filter((inc) => inc.distance <= 10).sort((a, b) => a.distance - b.distance)
+        : allPending;
+      setNearbyIncidents(matched);
+      setStats({ alerts: matched.length, accepted: acceptedIncidentIds.length, responseRate: matched.length > 0 ? 94 : 0 });
     } catch (error) {
       console.error("Fetch incidents failed:", error.message);
     }
@@ -239,7 +256,10 @@ export const VolunteerMode = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#0F172A] to-[#020617] text-white font-sans p-4 md:p-6 pb-32 relative overflow-x-hidden">
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-[#020617] via-[#0F172A] to-[#020617] text-white font-sans lg:flex-row">
+      <VolunteerSidebar />
+      <div id="volunteer-dashboard" className="relative min-w-0 flex-1 overflow-x-hidden p-4 pb-32 md:p-6">
+      <div id="active-incidents" className="sr-only">My Active Incidents</div>
       {/* Background decorative elements */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-[-50%] right-[-20%] w-[600px] h-[600px] bg-red-500/5 rounded-full blur-3xl" />
@@ -248,6 +268,7 @@ export const VolunteerMode = () => {
 
       {/* Header with Glassmorphism */}
       <motion.header
+        id="volunteer-profile"
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         className="relative z-10 backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border border-[rgba(255,255,255,0.08)] rounded-3xl p-5 mb-6"
@@ -309,8 +330,8 @@ export const VolunteerMode = () => {
         )}
       </motion.header>
 
-      {/* Stats Row */}
-      <motion.div
+      {/* Stats Row - dashboard only */}
+      {isDashboardRoute && <motion.div
         initial={{ y: 20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.1 }}
@@ -346,7 +367,7 @@ export const VolunteerMode = () => {
             <p className="text-xs text-[#94A3B8]">{stat.label}</p>
           </motion.div>
         ))}
-      </motion.div>
+      </motion.div>}
 
       <main className="relative z-10">
         {!isOnline ? (
@@ -375,11 +396,12 @@ export const VolunteerMode = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-6"
+              className={`space-y-6 ${!isActiveRoute ? "hidden" : ""}`}
             >
               {/* Live Map */}
               {selectedIncident && (
                 <motion.div
+                  id="active-incident"
                   initial={{ opacity: 0, y: -20 }}
                   animate={{ opacity: 1, y: 0 }}
                   className="relative"
@@ -403,6 +425,10 @@ export const VolunteerMode = () => {
                       showHeatmap={false}
                       className="h-full rounded-3xl border-0 shadow-none"
                     />
+                    <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl border border-red-400/30 bg-slate-950/80 px-3 py-2 backdrop-blur-md">
+                      <div className="flex items-center gap-2 text-xs font-bold text-white"><Bus className="h-4 w-4 animate-pulse text-red-400" />Dispatcher is on the way <span className="ml-auto text-red-300">{responderProgress}%</span></div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700"><div className="h-full rounded-full bg-red-500 transition-all duration-500" style={{ width: `${responderProgress}%` }} /></div>
+                    </div>
                     {/* Map overlay indicators */}
                     <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
                       <div className="flex items-center gap-2 text-xs bg-black/50 backdrop-blur-sm px-3 py-1.5 rounded-full">
@@ -419,10 +445,10 @@ export const VolunteerMode = () => {
               )}
 
               {/* Nearby Requests Header */}
-              <div className="flex items-center gap-2 mb-2">
+              <div id="active-incidents" className="flex items-center gap-2 mb-2">
                 <Bell className="w-5 h-5 text-red-400" />
                 <h2 className="text-xl font-bold">
-                  Nearby Requests ({nearbyIncidents.length})
+                  My Active Incidents ({nearbyIncidents.length})
                 </h2>
               </div>
 
@@ -496,7 +522,7 @@ export const VolunteerMode = () => {
                         </div>
 
                         {/* Divider */}
-                        <div className="border-t border-[rgba(255,255,255,0.05)] my-4" />
+                        <div className="border-t border-[rgba(255,255,255,0.05)] my-2" />
 
                         {/* Accept Button */}
                         <motion.button
@@ -504,7 +530,7 @@ export const VolunteerMode = () => {
                           whileTap={{ scale: 0.98 }}
                           onClick={() => handleAcceptIncident(incident)}
                           disabled={isAccepted}
-                          className={`w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-2 ${
+                            className={`w-fit min-w-[150px] self-end px-4 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
                             isAccepted
                               ? "bg-[#10B981]/20 text-[#10B981] cursor-default"
                               : "bg-gradient-to-r from-red-600 to-red-500 hover:shadow-lg hover:shadow-red-500/25 text-white"
@@ -530,7 +556,12 @@ export const VolunteerMode = () => {
             </motion.div>
           </AnimatePresence>
         )}
+        {isAllIncidentsRoute && <section id="all-incidents" className="mt-10 border-t border-white/10 pt-6">
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold"><Bell className="h-5 w-5 text-red-400" />All Available Incidents ({allAvailableIncidents.length})</h2>
+          {allAvailableIncidents.map((incident) => <button key={incident.id || incident._id} onClick={() => handleAcceptIncident(incident)} className="mb-2 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 p-4 text-left hover:border-red-500/50"><span><b className="block">{incident.type}</b><small className="text-slate-500">Available response request</small></span><span className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold">Accept</span></button>)}
+        </section>}
       </main>
+      {locationToast && <div className={`fixed right-4 top-4 z-[10000] rounded-xl border px-4 py-3 text-sm font-bold shadow-2xl ${locationToast.type === "success" ? "border-emerald-500/40 bg-emerald-900 text-emerald-100" : "border-red-500/40 bg-red-900 text-red-100"}`}>{locationToast.message}</div>}
 
       {/* Floating Emergency Button */}
       <motion.div
@@ -546,14 +577,19 @@ export const VolunteerMode = () => {
           onClick={() => {
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
-                (pos) =>
-                  setLocation({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                  }),
-                (err) => console.error("GPS Error:", err),
+                (pos) => {
+                  setLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+                  showLocationToast("success", "Your current location was updated successfully.");
+                },
+                (err) => {
+                  console.error("GPS Error:", err);
+                  const message = err.code === 1 ? "Please allow location access in your browser." : "Could not retrieve your current location.";
+                  showLocationToast("error", message);
+                },
                 { enableHighAccuracy: true },
               );
+            } else {
+              showLocationToast("error", "This browser does not support location services.");
             }
           }}
         >
@@ -600,6 +636,7 @@ export const VolunteerMode = () => {
           )}
         </motion.button>
       </motion.div>
+      </div>
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../components/AuthProvider";
 import { useNotifications } from "../components/NotificationSystem";
 import { IncidentMap } from "../components/IncidentMap";
 import {
@@ -15,6 +16,14 @@ import {
   Languages,
   Volume2,
   VolumeX,
+  LayoutDashboard,
+  ListChecks,
+  Users,
+  Hospital,
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  LogOut,
 } from "lucide-react";
 import { EmergencyChat } from "../components/EmergencyChat";
 import { IVRSimulator } from "../components/IVRSimulator";
@@ -22,6 +31,7 @@ import { VideoSOSModal } from "../components/VideoSOSModal";
 import { cn } from "../lib/utils";
 import { apiFetch } from "../lib/api";
 import { connectSocket } from "../lib/socket";
+import { CurrentIncident } from "./components/CurrentIncident";
 
 const ALERT_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"; // Urgent Emergency Alarm
@@ -29,6 +39,9 @@ const DISPATCH_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2536/2536-preview.mp3"; // Professional Dispatch "Chirp"
 
 export const DispatcherPage = () => {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [incidents, setIncidents] = useState([]);
   const [hospitals, setHospitals] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
@@ -213,7 +226,16 @@ export const DispatcherPage = () => {
     fetchVolunteers();
 
     const socket = connectSocket();
-    const refreshIncidents = () => fetchIncidents(true);
+    const refreshIncidents = (incidentUpdate) => {
+      fetchIncidents(true);
+      if (incidentUpdate?.assigned_volunteer_name && incidentUpdate.status === "Dispatched") {
+        addNotification({
+          type: "success",
+          title: "Volunteer accepted incident",
+          message: `${incidentUpdate.assigned_volunteer_name} accepted the ${incidentUpdate.type || "emergency"} incident and is en route.`,
+        });
+      }
+    };
     const refreshVolunteerList = () => fetchVolunteers();
 
     // Reset audio context if frozen
@@ -397,9 +419,21 @@ export const DispatcherPage = () => {
 
   return (
     <div className="emergency-shell flex min-h-screen lg:h-screen flex-col lg:flex-row bg-slate-950 overflow-hidden font-sans">
+      <aside className={cn("flex shrink-0 flex-col border-b border-slate-800 bg-slate-900 p-3 lg:h-full lg:border-b-0 lg:border-r", sidebarCollapsed ? "lg:w-[72px]" : "lg:w-[235px]")}>
+        <div className="flex items-center justify-between border-b border-slate-800 p-2 pb-4">
+          {!sidebarCollapsed && <div><p className="font-black text-white">QUICKREACH</p><p className="text-[9px] font-black uppercase tracking-widest text-red-500">Operations</p></div>}
+          <div className="flex items-center gap-1"><button onClick={toggleSound} className="rounded-lg bg-slate-800 p-2 text-red-500 hover:bg-slate-700" title={isSoundEnabled ? "Mute alerts" : "Enable sound alerts"}>{isSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button><button onClick={() => setSidebarCollapsed((value) => !value)} className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:text-white">{sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button></div>
+        </div>
+        <nav className="flex flex-1 gap-1 overflow-x-auto py-3 lg:block lg:space-y-2 lg:overflow-visible">
+          {[["Dashboard", LayoutDashboard, "/dashboard"], ["Incidents", ListChecks, "/incidents"], ["Manage Volunteers", Users, "/volunteers"], ["Manage Hospitals", Hospital, "/incidents"], ["Analytics", BarChart3, "/analytics"]].map(([label, Icon, path]) => <button key={label} onClick={() => navigate(path)} className={cn("flex min-w-max items-center gap-3 rounded-xl px-3 py-3 text-left text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white lg:w-full", label === "Incidents" && "bg-red-600 text-white")}><Icon className="h-4 w-4 shrink-0" />{!sidebarCollapsed && label}</button>)}
+        </nav>
+        {!sidebarCollapsed && <div className="mb-2 rounded-xl bg-slate-800 p-3"><p className="truncate text-xs font-bold text-white">{user?.name || user?.email || "Dispatcher"}</p><p className="mt-1 text-[9px] font-black uppercase tracking-widest text-red-400">Dispatcher</p></div>}
+        <button onClick={signOut} className="flex items-center justify-center gap-2 rounded-xl p-2 text-xs font-bold text-slate-500 hover:bg-slate-800 hover:text-white"><LogOut className="h-4 w-4" />{!sidebarCollapsed && "Sign out"}</button>
+      </aside>
       {/* Sidebar - Incident List */}
-      <aside className="w-full lg:w-[420px] lg:min-w-[420px] max-h-[52vh] lg:max-h-none bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-20">
-        <header className="p-5 sm:p-8 border-b border-slate-800 bg-slate-900">
+      <aside className={cn("w-full lg:w-[620px] lg:min-w-[520px] max-h-[52vh] lg:max-h-none bg-slate-900  border-r border-slate-800 flex flex-col shadow-2xl z-20", selectedIncident && "hidden")}>
+        <CurrentIncident incidents={activeIncidents} selectedIncidentId={selectedIncidentId} onSelect={setSelectedIncident} onActivate={(id) => updateStatus(id, "Dispatched")} getIncidentId={getIncidentId} getLocationName={getTrackedLocationName} />
+        <header className="hidden p-5 sm:p-8 border-b border-slate-800 bg-transparent">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-black text-white flex items-center gap-2 tracking-tighter">
               <div className="bg-red-600 p-1.5 rounded-lg shadow-lg shadow-red-900/20">
@@ -407,16 +441,8 @@ export const DispatcherPage = () => {
               </div>
               QUICKREACH <span className="text-red-600">HQ</span>
             </h1>
-            <button
-              onClick={() => setIsIVROpen(true)}
-              className="bg-slate-800 p-1.5 rounded-lg border border-white/5 hover:bg-slate-700 transition-colors group"
-              title="Launch IVR Simulator"
-            >
-              <Languages className="w-5 h-5 text-slate-400 group-hover:text-red-400" />
-            </button>
-
             {/* Sound toggle — glows red + pulses when an SOS arrived while muted */}
-            <div className="relative ml-2">
+            <div className="relative ml-2 hidden">
               {hasUnacknowledgedSOS && (
                 <span className="absolute -inset-1.5 rounded-xl bg-red-500 animate-ping opacity-60 pointer-events-none" />
               )}
@@ -472,18 +498,11 @@ export const DispatcherPage = () => {
               </button>
             </div>
           )}
-          <Link
-            to="/analytics"
-            className="text-[10px] text-red-400 hover:text-red-300 font-black uppercase tracking-widest"
-          >
-            Open Analytics Dashboard
-          </Link>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">
-            Emergency Dispatch Control
-          </p>
+          
+         
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
+        <div className="!hidden flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
           {activeIncidents.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 opacity-20">
               <Clock className="w-12 h-12 text-slate-400 mb-2" />
@@ -509,7 +528,7 @@ export const DispatcherPage = () => {
                   key={incidentId}
                   onClick={() => setSelectedIncident(incident)}
                   className={cn(
-                    "p-5 rounded-[2rem] border-2 transition-all duration-300 cursor-pointer group",
+                    "p-3 rounded-2xl border-2 transition-all duration-300 cursor-pointer group",
                     selectedIncidentId === incidentId
                       ? "bg-white border-white text-slate-900 shadow-[0_0_30px_rgba(255,255,255,0.1)] scale-[0.98]"
                       : "bg-slate-800/40 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-800",
@@ -518,7 +537,7 @@ export const DispatcherPage = () => {
                       "border-red-600/30 bg-red-600/5",
                   )}
                 >
-                  <div className="flex justify-between items-center mb-3">
+                  <div className="flex justify-between items-center mb-2">
                     <span
                       className={cn(
                         "text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest border",
@@ -546,10 +565,10 @@ export const DispatcherPage = () => {
                     </div>
                   )}
 
-                  <div className="mb-4">
+                  <div className="mb-2">
                     <h3
                       className={cn(
-                        "text-lg font-black tracking-tight",
+                        "text-base font-black tracking-tight",
                         selectedIncidentId === incidentId
                           ? "text-slate-900"
                           : "text-slate-200",
@@ -623,7 +642,7 @@ export const DispatcherPage = () => {
 
           {/* Resolved History Section */}
           {resolvedHistory.length > 0 && (
-            <div className="mt-10">
+            <div className="mt-10 hidden">
               <div className="flex items-center gap-2 mb-4 px-2">
                 <div className="h-px bg-slate-800 flex-1" />
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
@@ -685,6 +704,15 @@ export const DispatcherPage = () => {
       </aside>
 
       <main className="flex-1 relative flex flex-col">
+        {selectedIncident && (
+          <header className="relative z-[500] flex items-center justify-between border-b border-slate-800 bg-slate-900 px-5 py-4 sm:px-8">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-red-600 p-2"><AlertTriangle className="h-5 w-5 text-white" /></div>
+              <div><p className="text-[10px] font-black uppercase tracking-[0.25em] text-red-400">Selected incident</p><h1 className="text-lg font-black text-white sm:text-2xl">{selectedIncident.type} emergency</h1><p className="text-xs text-slate-400">{selectedIncident.reporter_phone} · {selectedIncident.status}</p></div>
+            </div>
+            <button onClick={() => setSelectedIncident(null)} className="rounded-xl bg-slate-800 px-4 py-2 text-xs font-black uppercase tracking-wider text-slate-300 hover:bg-red-600 hover:text-white">Back to incidents</button>
+          </header>
+        )}
         <div className="flex-1 bg-slate-950 relative">
           <IncidentMap
             userLocation={
@@ -703,10 +731,22 @@ export const DispatcherPage = () => {
                     ?.hospital || null
                 : null
             }
-            className="h-[28vh] sm:h-[36vh] lg:h-[50vh] rounded-none border-0 shadow-none"
+            className={cn("h-[28vh] sm:h-[36vh] lg:h-[50vh] rounded-none border-0 shadow-none", !selectedIncident && "hidden")}
           />
 
-          <div className="absolute top-10 right-10 z-[400] hidden sm:flex flex-col gap-2 scale-90 origin-top-right">
+          {!selectedIncident && (
+            <div className="absolute inset-0 z-[300] overflow-y-auto bg-slate-950 p-5 sm:p-8 lg:p-12">
+              <div className="mx-auto max-w-xl">
+                <div className="mb-6 flex items-center justify-between border-b border-slate-800 pb-4">
+                  <div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Incident records</p><h2 className="mt-1 text-2xl font-black text-white">Resolved history</h2></div>
+                  <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-bold text-slate-400">{resolvedHistory.length} resolved</span>
+                </div>
+                {resolvedHistory.length === 0 ? <div className="rounded-xl border border-white/10 bg-slate-900 p-8 text-center text-xs text-slate-500">No resolved incidents yet.</div> : <div className="space-y-2">{resolvedHistory.map((incident) => { const incidentId = getIncidentId(incident); return <button key={incidentId} onClick={() => setSelectedIncident(incident)} className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-slate-900 px-3 py-2 text-left hover:border-red-500/50"><div><p className="text-sm font-bold text-white">{incident.reporter_phone}</p><p className="mt-1 text-[10px] uppercase tracking-widest text-slate-500">{incident.type} · Resolved</p></div><span className="text-[10px] text-slate-500">{new Date(incident.updated_at || incident.created_at).toLocaleString()}</span></button>; })}</div>}
+              </div>
+            </div>
+          )}
+
+          {selectedIncident && <div className="absolute top-10 right-10 z-[400] hidden sm:flex flex-col gap-2 scale-90 origin-top-right">
             <button
               onClick={() => setShowHeatmap(!showHeatmap)}
               className={cn(
@@ -742,7 +782,7 @@ export const DispatcherPage = () => {
                 )}
               />
             </button>
-          </div>
+          </div>}
 
           <EmergencyChat
             incidentId={selectedIncidentId}
@@ -968,7 +1008,7 @@ export const DispatcherPage = () => {
                         </div>
                       )}
                       <button
-                        className="bg-red-600 text-white py-3 rounded-2xl font-black text-xs hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-red-600 text-white py-2 rounded-xl font-black text-[10px] hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() =>
                           updateStatus(selectedIncidentId, "Dispatched")
                         }
@@ -976,10 +1016,10 @@ export const DispatcherPage = () => {
                       >
                         {selectedIncident.status === "Dispatched"
                           ? "DISPATCHED"
-                          : "DISPATCH"}
+                          : "ACTIVATE & DISPATCH"}
                       </button>
                       <button
-                        className="bg-slate-800 text-white py-3 rounded-2xl font-black text-xs hover:bg-slate-700 border border-white/5 italic disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
+                        className="bg-slate-800 text-white py-2 rounded-xl font-black text-[10px] hover:bg-slate-700 border border-white/5 italic disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-slate-800"
                         onClick={() =>
                           updateStatus(selectedIncidentId, "Resolved")
                         }

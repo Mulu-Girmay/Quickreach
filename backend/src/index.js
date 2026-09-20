@@ -1,43 +1,12 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const http = require("http");
 require("dotenv").config({ debug: true });
 
+const { createApp } = require("./app");
 const { connectDB } = require("./lib/mongodb");
-const { ussdHandler } = require("./ussd/handler");
-const { allowedOrigins } = require("./config/cors");
-const socketIO = require("./sockets/io");
 const { seedDemoAccounts } = require("./services/seedDemoAccounts");
 const { startIncidentUpdateService } = require("./services/incidentNotifier");
-const { generalApiLimiter } = require("./middleware/ratelimit");
-const app = express();
-const server = http.createServer(app);
+
+const { app, server } = createApp();
 const PORT = process.env.PORT || 3000;
-app.set("trust proxy", 1);
-
-socketIO.init(server, allowedOrigins);
-app.use(
-  cors({
-    origin: allowedOrigins,
-    credentials: true,
-  }),
-);
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
-
-app.use("/", require("./routes/system.routes"));
-app.use("/api", generalApiLimiter);
-app.use("/api/auth", require("./routes/auth.routes"));
-app.use("/api/incidents", require("./routes/incidents.routes"));
-app.use("/api/hospitals", require("./routes/hospitals.routes"));
-app.use("/api/volunteers", require("./routes/volunteers.routes"));
-app.use("/api/messages", require("./routes/messages.routes"));
-app.use("/api/push", require("./routes/push.routes"));
-app.use("/api/analytics", require("./routes/analytics.routes"));
-app.use("/api/stats", require("./routes/stats.routes"));
-
-app.post("/ussd", ussdHandler);
 
 const startServer = async () => {
   try {
@@ -67,3 +36,5 @@ server.on("error", (err) => {
 });
 
 startServer();
+
+module.exports = { app, server };

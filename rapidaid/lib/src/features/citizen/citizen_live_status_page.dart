@@ -28,6 +28,7 @@ class _CitizenLiveStatusPageState extends State<CitizenLiveStatusPage> {
   final SocketService _socketService = SocketService();
   StreamSubscription? _incidentSubscription;
   Timer? _statusPulseTimer;
+  Timer? _statusPollTimer;
 
   bool _loading = true;
   String? _error;
@@ -52,6 +53,7 @@ class _CitizenLiveStatusPageState extends State<CitizenLiveStatusPage> {
   void dispose() {
     _incidentSubscription?.cancel();
     _statusPulseTimer?.cancel();
+    _statusPollTimer?.cancel();
     super.dispose();
   }
 
@@ -77,6 +79,10 @@ class _CitizenLiveStatusPageState extends State<CitizenLiveStatusPage> {
 
       await _socketService.connect();
       _socketService.joinIncidentRoom(incidentId);
+      _statusPollTimer?.cancel();
+      _statusPollTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+        _pollIncidentStatus(incidentId);
+      });
       _incidentSubscription ??= _socketService.incidentStream.listen((event) {
         final payload = event['data'];
         if (payload is! Map) return;
@@ -105,6 +111,28 @@ class _CitizenLiveStatusPageState extends State<CitizenLiveStatusPage> {
         _loading = false;
         _error = 'Unable to load live dispatcher status.';
       });
+    }
+  }
+
+  Future<void> _pollIncidentStatus(String incidentId) async {
+    try {
+      final data = await widget.repository.fetchIncidentDetails(incidentId);
+      if (!mounted) return;
+      final nextStatus = data['status']?.toString();
+      final changed = nextStatus != null && nextStatus != _lastStatus;
+      setState(() {
+        _incidentDetails = data;
+        if (nextStatus != null) _lastStatus = nextStatus;
+        _statusPulse = changed;
+      });
+      if (changed) {
+        _statusPulseTimer?.cancel();
+        _statusPulseTimer = Timer(const Duration(milliseconds: 900), () {
+          if (mounted) setState(() => _statusPulse = false);
+        });
+      }
+    } catch (_) {
+      // Socket updates remain available; a temporary polling failure is harmless.
     }
   }
 
@@ -385,6 +413,34 @@ class _MapCard extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (status.toLowerCase() == 'dispatched' ||
+                          status.toLowerCase() == 'resolved')
+                        TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(seconds: 8),
+                          builder: (context, progress, child) {
+                            return Positioned(
+                              left: 18 + (progress * 210),
+                              top: 118 - (progress * 70),
+                              child: child!,
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade700,
+                              shape: BoxShape.circle,
+                              boxShadow: const [
+                                BoxShadow(color: Colors.black54, blurRadius: 8),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.directions_bus,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
+                        ),
                       Positioned(
                         top: 12,
                         right: 12,

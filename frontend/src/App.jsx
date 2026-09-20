@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PanicPage } from './pages/PanicPage';
 import { LandingPage } from './pages/LandingPage';
@@ -14,6 +14,9 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage, SignupPage, UnauthorizedPage } from './pages/LoginPage';
 import { VolunteerLoginPage } from './pages/VolunteerLoginPage';
 import { DispatcherLoginPage } from './pages/DispatcherLoginPage';
+import { DispatcherDashboardPage } from './pages/DispatcherDashboardPage';
+import { VolunteerManagementPage } from './pages/VolunteerManagementPage';
+import { HospitalManagementPage } from './pages/HospitalManagementPage';
 import './App.css';
 import { useAuth } from './components/AuthProvider';
 
@@ -49,7 +52,39 @@ function App() {
                   path="/dispatcher"
                   element={
                     <ProtectedRoute roles={['dispatcher', 'admin']}>
+                      <Navigate to="/dashboard" replace />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute roles={['dispatcher', 'admin']}>
+                      <DispatcherDashboardPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/incidents"
+                  element={
+                    <ProtectedRoute roles={['dispatcher', 'admin']}>
                       <DispatcherPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/volunteers"
+                  element={
+                    <ProtectedRoute roles={['dispatcher', 'admin']}>
+                      <VolunteerManagementPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/hospitals"
+                  element={
+                    <ProtectedRoute roles={['dispatcher', 'admin']}>
+                      <HospitalManagementPage />
                     </ProtectedRoute>
                   }
                 />
@@ -61,6 +96,9 @@ function App() {
                     </ProtectedRoute>
                   }
                 />
+                <Route path="/volunteer/active" element={<ProtectedRoute roles={['volunteer', 'admin']}><VolunteerMode /></ProtectedRoute>} />
+                <Route path="/active" element={<ProtectedRoute roles={['volunteer', 'admin']}><VolunteerMode /></ProtectedRoute>} />
+                <Route path="/volunteer/incidents" element={<ProtectedRoute roles={['volunteer', 'admin']}><VolunteerMode /></ProtectedRoute>} />
                 <Route
                   path="/analytics"
                   element={

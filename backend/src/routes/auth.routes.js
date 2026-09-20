@@ -7,27 +7,30 @@ const { registerLimiter, loginLimiter } = require("../middleware/ratelimit");
 
 const router = express.Router();
 
-const SELF_REGISTERABLE_ROLES = ["citizen", "volunteer"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
 
 router.post("/register", registerLimiter, async (req, res) => {
   try {
-    const { name, email, password, role = "volunteer" } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const { name, email, password } = req.body;
 
-    const normalizedRole = String(role || "volunteer").toLowerCase();
-    if (!SELF_REGISTERABLE_ROLES.includes(normalizedRole)) {
+    if (!email || typeof email !== "string" || !EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: "A valid email is required" });
+    }
+    if (!password || typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
       return res.status(400).json({
-        error:
-          "Invalid role. Public registration only supports citizen or volunteer accounts.",
+        error: `Password is required and must be at least ${MIN_PASSWORD_LENGTH} characters`,
       });
     }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const volunteer = await Volunteer.create({
       name: name || email.split("@")[0],
       email,
       password: hashedPassword,
-      role: normalizedRole,
-      approval_status: normalizedRole === "volunteer" ? "pending" : "approved",
+      role: "volunteer",
+      approval_status: "pending",
     });
 
     const token = generateToken(volunteer);
@@ -37,8 +40,11 @@ router.post("/register", registerLimiter, async (req, res) => {
       volunteer: { ...volunteer.toObject(), password: undefined },
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: "Email is already registered" });
+    }
     console.error("Register error:", err);
-    res.status(500).json({ error: err.message || "Registration failed" });
+    res.status(500).json({ error: "Registration failed" });
   }
 });
 
@@ -52,7 +58,7 @@ router.post(
     try {
       const { name, email, password, role } = req.body;
       const normalizedRole = String(role || "").toLowerCase();
-      const allowedRoles = ["citizen", "volunteer", "dispatcher", "admin"];
+      const allowedRoles = ["citizen", "volunteer", "admin"];
 
       if (!allowedRoles.includes(normalizedRole)) {
         return res.status(400).json({ error: "Invalid role" });
@@ -76,8 +82,11 @@ router.post(
         user: { ...volunteer.toObject(), password: undefined },
       });
     } catch (err) {
+      if (err.code === 11000) {
+        return res.status(409).json({ error: "Email is already registered" });
+      }
       console.error("Admin create-user error:", err);
-      res.status(500).json({ error: err.message || "Failed to create user" });
+      res.status(500).json({ error: "Failed to create user" });
     }
   },
 );
@@ -85,6 +94,10 @@ router.post(
 router.post("/login", loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
 
     const volunteer = await Volunteer.findOne({ email });
     if (!volunteer || !(await bcrypt.compare(password, volunteer.password))) {

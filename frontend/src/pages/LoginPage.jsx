@@ -95,7 +95,6 @@ export function SignupPage() {
   const { signUp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("citizen");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -109,7 +108,6 @@ export function SignupPage() {
     const { error: signupError } = await signUp({
       email,
       password,
-      role,
     });
 
     setLoading(false);
@@ -119,16 +117,9 @@ export function SignupPage() {
       return;
     }
 
-    setMessage("Account created and signed in.");
-    const roleValue = String(role || "citizen").toLowerCase();
+    setMessage("Application submitted. A dispatcher must approve your volunteer account before you can access the volunteer dashboard.");
     setTimeout(() => {
-      if (roleValue === "dispatcher" || roleValue === "admin") {
-        navigate("/dispatcher");
-      } else if (roleValue === "volunteer") {
-        navigate("/volunteer");
-      } else {
-        navigate("/panic");
-      }
+      navigate("/login");
     }, 800);
   };
 
@@ -152,15 +143,6 @@ export function SignupPage() {
           placeholder="Password (min 8)"
           className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
         />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-          className="w-full bg-slate-800 px-4 py-3 rounded-xl outline-none"
-        >
-          <option value="citizen">Citizen</option>
-          <option value="volunteer">Volunteer</option>
-          <option value="dispatcher">Dispatcher</option>
-        </select>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {message && <p className="text-red-300 text-sm">{message}</p>}
         <button

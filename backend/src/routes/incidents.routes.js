@@ -13,7 +13,7 @@ const { emitPushToEmergencyTeam } = require("../services/pushFanout");
 const { emitIncidentEvent, emitToTeamAndIncident } = require("../sockets/io");
 const { normalizeIncidentMessageRole } = require("../utils/normalize");
 const { maskPhone } = require("../utils/mask");
-const { incidentCreationLimiter } = require("../middleware/rateLimit");
+const { incidentCreationLimiter } = require("../middleware/ratelimit");
 
 const router = express.Router();
 
@@ -33,6 +33,25 @@ router.post("/public", incidentCreationLimiter, async (req, res) => {
       client_created_at,
       client_request_id,
     } = req.body;
+        if (!type || typeof type !== "string") {
+      return res.status(400).json({ error: "Incident type is required" });
+    }
+    if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) {
+      return res.status(400).json({ error: "A valid lat and lng are required" });
+    }
+    if (!reporter_phone || typeof reporter_phone !== "string") {
+      return res.status(400).json({ error: "reporter_phone is required" });
+    }
+
+    const unresolvedCount = await Incident.countDocuments({
+      reporter_phone,
+      status: { $in: ["Pending", "Dispatched"] },
+    });
+    if (unresolvedCount >= 3) {
+      return res.status(429).json({
+        error: "You already have 3 active SOS incidents. Please wait for one to be resolved before sending another.",
+      });
+    }
 
     const result = await triggerEmergency(
       {

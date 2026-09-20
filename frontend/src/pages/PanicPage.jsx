@@ -139,9 +139,9 @@ export const PanicPage = () => {
   }, []);
 
   useEffect(() => {
-    if (!activeIncident?.id) return;
+    const incidentId = activeIncident?.id || activeIncident?._id;
+    if (!incidentId) return;
 
-    const incidentId = activeIncident.id;
     const incidentToken =
       incidentAccessToken || activeIncident?.id || activeIncident?._id;
     const socket = connectSocket();
@@ -296,18 +296,22 @@ export const PanicPage = () => {
 
     syncIncident();
     loadDispatcherMessages();
+    const statusPoll = window.setInterval(syncIncident, 10000);
 
     return () => {
       socket.off(`incident-${incidentId}`, handleIncidentChannelUpdate);
       socket.off("incident-updated", handleIncidentChannelUpdate);
       socket.off(`message-${incidentId}`, handleMessageChannelUpdate);
+      window.clearInterval(statusPoll);
       stopResponderSimulation();
       dispatchSimStartedRef.current = false;
     };
-  }, [activeIncident?.id]);
+  }, [activeIncident?.id, activeIncident?._id, incidentAccessToken]);
 
   const startResponderSimulation = () => {
-    const currentLocation = locationRef.current || location;
+    const currentLocation = locationRef.current || location || (activeIncident?.lat && activeIncident?.lng
+      ? { lat: Number(activeIncident.lat), lng: Number(activeIncident.lng) }
+      : null);
     if (!currentLocation) return;
     stopResponderSimulation();
 

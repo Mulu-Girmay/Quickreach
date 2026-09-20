@@ -9,8 +9,14 @@ const { findNearestHospital } = require("../services/hospitalRecommendation");
 const crypto = require("crypto");
 
 const ussdHandler = async (req, res) => {
-  const { sessionId, phoneNumber, text } = req.body;
+  const { sessionId, phoneNumber } = req.body;
+const text = typeof req.body.text === "string" ? req.body.text : "";
 
+  if (!sessionId || !phoneNumber) {
+    return res
+      .status(400)
+      .send("END QuickReach could not process this request. Please try again.");
+  }
   const textArray = text.split("*");
   const lastInput = textArray[textArray.length - 1];
 
@@ -293,4 +299,4 @@ function setupEscalationTimeout(incidentId) {
   }, 60000);
 }
 
-module.exports = { ussdHandler, triggerEmergency };
+module.exports = { ussdHandler, triggerEmergency, computeTriageScore };

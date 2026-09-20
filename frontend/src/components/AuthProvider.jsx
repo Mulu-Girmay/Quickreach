@@ -13,7 +13,7 @@ const AUTH_TOKEN_KEY = "quickreach_auth_token";
 const AUTH_USER_KEY = "quickreach_auth_user";
 
 function normalizeRole(user) {
-  const role = user?.role || "citizen";
+  const role = user?.role || "volunteer";
   return String(role).toLowerCase();
 }
 
@@ -57,11 +57,11 @@ export function AuthProvider({ children }) {
     return { data: payload, error: null };
   };
 
-  const signUp = async ({ email, password, name, role = "citizen" }) => {
+  const signUp = async ({ email, password, name }) => {
     const payload = await apiFetch("/api/auth/register", {
       method: "POST",
       auth: false,
-      body: { email, password, name, role },
+      body: { email, password, name },
     });
 
     persistAuth(payload.token, payload.user || payload.volunteer || null);

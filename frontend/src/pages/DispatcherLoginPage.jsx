@@ -6,29 +6,17 @@ import { LayoutDashboard, Radio } from "lucide-react";
 export const DispatcherLoginPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
 
   const handleDispatcherLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isSignUp) {
-        const { error } = await signUp({
-          email,
-          password,
-          role: "dispatcher",
-          name: "Dispatcher " + Math.floor(Math.random() * 1000),
-        });
-        if (error) throw error;
-        navigate("/dispatcher");
-      } else {
-        const { error } = await signIn(email, password);
-        if (error) throw error;
-        navigate("/dispatcher");
-      }
+      const { error } = await signIn(email, password);
+      if (error) throw error;
+      navigate("/dispatcher");
     } catch (error) {
       console.error("Auth failed:", error.message);
       alert(error.message);
@@ -47,7 +35,7 @@ export const DispatcherLoginPage = () => {
           Dispatcher Portal
         </h1>
         <p className="text-slate-400 mb-8">
-          {isSignUp ? "Create Command Account" : "Secure Login"}
+          Secure Login
         </p>
 
         <form onSubmit={handleDispatcherLogin} className="space-y-4 text-left">
@@ -81,22 +69,9 @@ export const DispatcherLoginPage = () => {
             disabled={loading}
             className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded-xl transition-all mt-4"
           >
-            {loading
-              ? "Authenticating..."
-              : isSignUp
-                ? "Register Terminal"
-                : "Access Dashboard"}
+            {loading ? "Authenticating..." : "Access Dashboard"}
           </button>
         </form>
-
-        <button
-          onClick={() => setIsSignUp(!isSignUp)}
-          className="text-xs text-slate-500 mt-6 hover:text-white transition-colors"
-        >
-          {isSignUp
-            ? "Already have credentials? Sign In"
-            : "Need authorization? Create Account"}
-        </button>
 
         <p className="text-xs text-slate-500 mt-4 flex items-center justify-center gap-2">
           <Radio className="w-3 h-3 animate-pulse text-red-500" />

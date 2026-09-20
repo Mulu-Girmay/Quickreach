@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { BarChart3, Activity, ShieldCheck, Layers } from "lucide-react";
 import { apiFetch } from "../lib/api";
+import { DispatcherSidebar } from "../components/DispatcherSidebar";
 
 export function AnalyticsPage() {
   const [data, setData] = useState(null);
@@ -27,7 +28,7 @@ export function AnalyticsPage() {
   const accountability = data?.operator_accountability || {};
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white p-8">
+    <div className="flex min-h-screen bg-slate-950 text-white"><DispatcherSidebar /><div className="min-w-0 flex-1 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-black mb-2 flex items-center gap-2">
           <BarChart3 className="w-7 h-7 text-red-500" />
@@ -102,7 +103,7 @@ export function AnalyticsPage() {
           </div>
         </section>
       </div>
-    </div>
+    </div></div>
   );
 }
 
