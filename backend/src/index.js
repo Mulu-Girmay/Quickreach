@@ -12,7 +12,11 @@ const startServer = async () => {
   try {
     await connectDB();
     await seedDemoAccounts();
-    await startIncidentUpdateService();
+    if (process.env.REDIS_URL) {
+      await startIncidentUpdateService();
+    } else {
+      console.warn("REDIS_URL is not configured; skipping Redis-backed incident SMS worker.");
+    }
     server.listen(PORT, () => {
       console.log(`
   server is running at http://localhost:${PORT}
