@@ -81,6 +81,22 @@ router.post("/login", loginLimiter, async (req, res) => {
   }
 });
 
+// ── Authenticated user profile ────────────────────────────────────────────────
+router.get("/me", authMiddleware, async (req, res) => {
+  try {
+    const user = req.user.toObject ? req.user.toObject() : { ...req.user };
+    delete user.password;
+    delete user.push_subscriptions;
+    res.json({
+      user,
+      volunteer: user,
+    });
+  } catch (err) {
+    console.error("Fetch profile error:", err);
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+});
+
 // ── Dispatcher management (dispatcher or admin only) ──────────────────────────
 
 // Create another dispatcher. The creating dispatcher sets the password;

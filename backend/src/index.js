@@ -2,6 +2,7 @@ require("dotenv").config({ debug: true });
 
 const { createApp } = require("./app");
 const { connectDB } = require("./lib/mongodb");
+const { initRedis } = require("./lib/redis");
 const { startIncidentUpdateService } = require("./services/incidentNotifier");
 
 const { app, server } = createApp();
@@ -10,11 +11,8 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
     await connectDB();
-    if (process.env.REDIS_URL) {
-      await startIncidentUpdateService();
-    } else {
-      console.warn("REDIS_URL is not configured; skipping Redis-backed incident SMS worker.");
-    }
+    await initRedis();
+    await startIncidentUpdateService();
     server.listen(PORT, () => {
       console.log(`
   server is running at http://localhost:${PORT}

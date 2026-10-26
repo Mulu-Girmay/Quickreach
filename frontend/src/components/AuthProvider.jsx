@@ -21,15 +21,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const savedToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const savedUser = localStorage.getItem(AUTH_USER_KEY);
-
-    setToken(savedToken || null);
-    setUser(savedUser ? JSON.parse(savedUser) : null);
-    setLoading(false);
-  }, []);
+  const [profileLoading, setProfileLoading] = useState(false);
 
   const persistAuth = (nextToken, nextUser) => {
     setToken(nextToken);
@@ -46,6 +38,61 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const refreshUser = async () => {
+    const currentToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!currentToken) {
+      setProfileLoading(false);
+      return null;
+    }
+    try {
+      setProfileLoading(true);
+      const payload = await apiFetch("/api/auth/me");
+      const freshUser = payload.user || payload.volunteer || null;
+      if (freshUser) {
+        setUser(freshUser);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(freshUser));
+      }
+      return freshUser;
+    } catch (err) {
+      // If unauthorized/expired token, clear session
+      const message = String(err.message || "").toLowerCase();
+      if (
+        message.includes("401") ||
+        message.includes("invalid token") ||
+        message.includes("authentication required")
+      ) {
+        persistAuth(null, null);
+      }
+      // For network blips or offline, keep cached user
+      return null;
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    const savedUser = localStorage.getItem(AUTH_USER_KEY);
+
+    let parsedUser = null;
+    if (savedUser) {
+      try {
+        parsedUser = JSON.parse(savedUser);
+      } catch (e) {
+        localStorage.removeItem(AUTH_USER_KEY);
+      }
+    }
+
+    setToken(savedToken || null);
+    setUser(parsedUser);
+    setLoading(false);
+
+    // If token exists, refresh profile in background once to verify validity and keep fresh
+    if (savedToken) {
+      refreshUser();
+    }
+  }, []);
+
   const signIn = async (email, password) => {
     const payload = await apiFetch("/api/auth/login", {
       method: "POST",
@@ -53,7 +100,8 @@ export function AuthProvider({ children }) {
       body: { email, password },
     });
 
-    persistAuth(payload.token, payload.user || payload.volunteer || null);
+    const authenticatedUser = payload.user || payload.volunteer || null;
+    persistAuth(payload.token, authenticatedUser);
     return { data: payload, error: null };
   };
 
@@ -64,7 +112,8 @@ export function AuthProvider({ children }) {
       body: { email, password, name },
     });
 
-    persistAuth(payload.token, payload.user || payload.volunteer || null);
+    const authenticatedUser = payload.user || payload.volunteer || null;
+    persistAuth(payload.token, authenticatedUser);
     return { data: payload, error: null };
   };
 
@@ -76,14 +125,16 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => {
     return {
       loading,
+      profileLoading,
       user,
       session: token ? { access_token: token, user } : null,
       role: normalizeRole(user),
       signIn,
       signUp,
       signOut,
+      refreshUser,
     };
-  }, [loading, token, user]);
+  }, [loading, profileLoading, token, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

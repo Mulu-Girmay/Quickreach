@@ -1,11 +1,65 @@
 const express = require("express");
-const { Volunteer } = require("../models");
+const { Volunteer, Incident } = require("../models");
 const { authMiddleware } = require("../lib/auth");
 const { requireRoles } = require("../middleware/roles");
 const { normalizeIncidentMessageRole } = require("../utils/normalize");
 const { emitToTeam } = require("../sockets/io");
 
 const router = express.Router();
+
+/**
+ * List all volunteers with optional filtering by status and online state.
+ * Accessible to dispatchers and admins.
+ */
+router.get(
+  "/",
+  authMiddleware,
+  requireRoles("dispatcher", "admin"),
+  async (req, res) => {
+    try {
+      const { status, online } = req.query;
+      const query = { role: "volunteer" };
+
+      if (status && status !== "all") {
+        query.approval_status = status;
+      }
+      if (online !== undefined && online !== "all") {
+        query.is_online = online === "true";
+      }
+
+      const volunteers = await Volunteer.find(query)
+        .select("-password -push_subscriptions")
+        .sort({ is_online: -1, created_at: -1 })
+        .lean();
+
+      // Find any active assigned incidents for these volunteers
+      const volunteerIds = volunteers.map((v) => v._id);
+      const activeIncidents = await Incident.find({
+        assigned_volunteer_id: { $in: volunteerIds },
+        status: { $nin: ["Resolved", "Cancelled"] },
+      })
+        .select("_id type status lat lng reporter_phone created_at assigned_volunteer_id")
+        .lean();
+
+      const incidentByVolId = new Map();
+      activeIncidents.forEach((inc) => {
+        if (inc.assigned_volunteer_id) {
+          incidentByVolId.set(String(inc.assigned_volunteer_id), inc);
+        }
+      });
+
+      const enrichedVolunteers = volunteers.map((v) => ({
+        ...v,
+        active_incident: incidentByVolId.get(String(v._id)) || null,
+      }));
+
+      res.json({ volunteers: enrichedVolunteers });
+    } catch (err) {
+      console.error("Fetch all volunteers error:", err);
+      res.status(500).json({ error: "Failed to fetch volunteers" });
+    }
+  },
+);
 
 router.get("/online", async (req, res) => {
   try {

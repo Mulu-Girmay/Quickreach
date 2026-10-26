@@ -1,5 +1,5 @@
 const { Worker } = require("bullmq");
-const { connection } = require("../lib/redis");
+const { getConnection } = require("../lib/redis");
 const { Incident } = require("../models");
 const { sendSMS } = require("../lib/sms");
 const {
@@ -45,6 +45,10 @@ let worker = null;
 
 const startIncidentSmsWorker = () => {
   if (worker) return worker;
+  const connection = getConnection();
+  if (!connection) {
+    throw new Error("Redis connection is not available for BullMQ worker");
+  }
 
   worker = new Worker(
     INCIDENT_SMS_QUEUE_NAME,

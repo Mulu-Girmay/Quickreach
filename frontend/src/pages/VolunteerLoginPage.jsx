@@ -1,13 +1,19 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../components/AuthProvider";
 import { Shield } from "lucide-react";
 
 export const VolunteerLoginPage = () => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const initialSignUp =
+    searchParams.get("signup") === "true" ||
+    searchParams.get("mode") === "signup";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(initialSignUp);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { signIn, signUp } = useAuth();

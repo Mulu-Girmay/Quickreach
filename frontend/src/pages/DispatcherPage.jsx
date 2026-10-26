@@ -32,6 +32,7 @@ import { cn } from "../lib/utils";
 import { apiFetch } from "../lib/api";
 import { connectSocket } from "../lib/socket";
 import { CurrentIncident } from "./components/CurrentIncident";
+import { VolunteerManagementTab } from "./components/VolunteerManagementTab";
 
 const ALERT_SOUND_URL =
   "https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3"; // Urgent Emergency Alarm
@@ -45,6 +46,8 @@ export const DispatcherPage = () => {
   const [incidents, setIncidents] = useState([]);
   const [hospitals, setHospitals] = useState([]);
   const [volunteers, setVolunteers] = useState([]);
+  const [activeMainTab, setActiveMainTab] = useState("incidents"); // 'incidents' | 'volunteers'
+  const [volunteersLoading, setVolunteersLoading] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isVideoCallOpen, setIsVideoCallOpen] = useState(false);
@@ -295,10 +298,45 @@ export const DispatcherPage = () => {
 
   const fetchVolunteers = async () => {
     try {
-      const payload = await apiFetch("/api/volunteers/online");
+      setVolunteersLoading(true);
+      const payload = await apiFetch("/api/volunteers");
       setVolunteers(payload.volunteers || []);
     } catch (error) {
       console.error("Fetch volunteers failed:", error.message);
+    } finally {
+      setVolunteersLoading(false);
+    }
+  };
+
+  const updateVolunteerApproval = async (id, approval_status) => {
+    try {
+      const res = await apiFetch(`/api/volunteers/${id}/approval`, {
+        method: "PATCH",
+        body: { approval_status },
+      });
+      setVolunteers((prev) =>
+        prev.map((v) =>
+          v._id === id
+            ? {
+                ...v,
+                approval_status,
+                is_online: approval_status === "approved" ? v.is_online : false,
+              }
+            : v,
+        ),
+      );
+      addNotification({
+        type: "success",
+        title: "Volunteer Updated",
+        message: `Status updated to ${approval_status} for ${res.volunteer?.name || "volunteer"}.`,
+      });
+    } catch (error) {
+      console.error("Update volunteer approval failed:", error.message);
+      addNotification({
+        type: "error",
+        title: "Update Failed",
+        message: error.message || "Could not update volunteer approval.",
+      });
     }
   };
 
@@ -425,14 +463,167 @@ export const DispatcherPage = () => {
           <div className="flex items-center gap-1"><button onClick={toggleSound} className="rounded-lg bg-slate-800 p-2 text-red-500 hover:bg-slate-700" title={isSoundEnabled ? "Mute alerts" : "Enable sound alerts"}>{isSoundEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}</button><button onClick={() => setSidebarCollapsed((value) => !value)} className="rounded-lg bg-slate-800 p-2 text-slate-400 hover:text-white">{sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}</button></div>
         </div>
         <nav className="flex flex-1 gap-1 overflow-x-auto py-3 lg:block lg:space-y-2 lg:overflow-visible">
-          {[["Dashboard", LayoutDashboard, "/dashboard"], ["Incidents", ListChecks, "/incidents"], ["Manage Volunteers", Users, "/volunteers"], ["Manage Hospitals", Hospital, "/incidents"], ["Analytics", BarChart3, "/analytics"]].map(([label, Icon, path]) => <button key={label} onClick={() => navigate(path)} className={cn("flex min-w-max items-center gap-3 rounded-xl px-3 py-3 text-left text-xs font-bold text-slate-400 hover:bg-slate-800 hover:text-white lg:w-full", label === "Incidents" && "bg-red-600 text-white")}><Icon className="h-4 w-4 shrink-0" />{!sidebarCollapsed && label}</button>)}
+          {[
+            ["Dashboard", LayoutDashboard, "/dashboard", false],
+            ["Incidents", ListChecks, null, activeMainTab === "incidents"],
+            ["Manage Volunteers", Users, null, activeMainTab === "volunteers"],
+            ["Manage Hospitals", Hospital, "/hospitals", false],
+            ["Analytics", BarChart3, "/analytics", false],
+          ].map(([label, Icon, path, isActive]) => (
+            <button
+              key={label}
+              onClick={() => {
+                if (path) navigate(path);
+                else if (label === "Incidents") setActiveMainTab("incidents");
+                else if (label === "Manage Volunteers") setActiveMainTab("volunteers");
+              }}
+              className={cn(
+                "flex min-w-max items-center gap-3 rounded-xl px-3 py-3 text-left text-xs font-bold transition-colors lg:w-full",
+                isActive
+                  ? "bg-red-600 text-white shadow-md shadow-red-900/30"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white",
+              )}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              {!sidebarCollapsed && label}
+            </button>
+          ))}
         </nav>
-        {!sidebarCollapsed && <div className="mb-2 rounded-xl bg-slate-800 p-3"><p className="truncate text-xs font-bold text-white">{user?.name || user?.email || "Dispatcher"}</p><p className="mt-1 text-[9px] font-black uppercase tracking-widest text-red-400">Dispatcher</p></div>}
+        {!sidebarCollapsed && (
+          <div className="mb-2 flex items-center gap-3 rounded-2xl bg-slate-800/80 p-3 border border-white/5">
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={user.name || "Dispatcher"}
+                className="h-9 w-9 rounded-xl object-cover shrink-0 border border-white/10"
+              />
+            ) : (
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-red-500/20 to-slate-800 border border-red-500/30 text-xs font-black text-red-400">
+                {(() => {
+                  const name = user?.name;
+                  const email = user?.email;
+                  if (name && name.trim()) {
+                    const parts = name.trim().split(/\s+/);
+                    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+                    return name.slice(0, 2).toUpperCase();
+                  }
+                  if (email) return email.slice(0, 2).toUpperCase();
+                  return "DI";
+                })()}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-xs font-bold text-white" title={user?.name || user?.email}>
+                {user?.name || user?.email?.split("@")[0] || "Dispatcher"}
+              </p>
+              <p className="text-[9px] font-black uppercase tracking-widest text-red-400">
+                {user?.role || "Dispatcher"}
+              </p>
+              {user?.email && (
+                <p className="truncate text-[10px] text-slate-400" title={user.email}>
+                  {user.email}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         <button onClick={signOut} className="flex items-center justify-center gap-2 rounded-xl p-2 text-xs font-bold text-slate-500 hover:bg-slate-800 hover:text-white"><LogOut className="h-4 w-4" />{!sidebarCollapsed && "Sign out"}</button>
       </aside>
-      {/* Sidebar - Incident List */}
-      <aside className={cn("w-full lg:w-[620px] lg:min-w-[520px] max-h-[52vh] lg:max-h-none bg-slate-900  border-r border-slate-800 flex flex-col shadow-2xl z-20", selectedIncident && "hidden")}>
-        <CurrentIncident incidents={activeIncidents} selectedIncidentId={selectedIncidentId} onSelect={setSelectedIncident} onActivate={(id) => updateStatus(id, "Dispatched")} getIncidentId={getIncidentId} getLocationName={getTrackedLocationName} />
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        {/* Top Tab Switcher */}
+        <header className="flex items-center justify-between border-b border-slate-800 bg-slate-900/95 px-4 py-2.5 shrink-0 z-30">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setActiveMainTab("incidents")}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+                activeMainTab === "incidents"
+                  ? "bg-red-600 text-white shadow-lg shadow-red-900/30"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white",
+              )}
+            >
+              <ListChecks className="h-4 w-4" />
+              <span>Active Incidents & Map</span>
+              {activeIncidents.length > 0 && (
+                <span className="rounded-full bg-red-800 px-2 py-0.5 text-[10px] font-black">
+                  {activeIncidents.length}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={() => setActiveMainTab("volunteers")}
+              className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all",
+                activeMainTab === "volunteers"
+                  ? "bg-red-600 text-white shadow-lg shadow-red-900/30"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white",
+              )}
+            >
+              <Users className="h-4 w-4" />
+              <span>Volunteer Management</span>
+              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-black text-slate-300">
+                {volunteers.length}
+              </span>
+              {volunteers.filter((v) => v.approval_status === "pending").length >
+                0 && (
+                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-black text-amber-300 border border-amber-500/30">
+                  {
+                    volunteers.filter((v) => v.approval_status === "pending")
+                      .length
+                  }{" "}
+                  pending
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>
+                {volunteers.filter((v) => v.is_online).length} online
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {activeMainTab === "volunteers" ? (
+          <div className="flex-1 overflow-hidden">
+            <VolunteerManagementTab
+              volunteers={volunteers}
+              onUpdateApproval={updateVolunteerApproval}
+              onRefresh={fetchVolunteers}
+              loading={volunteersLoading}
+              onLocateOnMap={(volunteer) => {
+                setActiveMainTab("incidents");
+              }}
+              onSelectIncident={(incident) => {
+                setActiveMainTab("incidents");
+                setSelectedIncident(incident);
+              }}
+            />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+            {/* Sidebar - Incident List */}
+            <aside
+              className={cn(
+                "w-full lg:w-[620px] lg:min-w-[520px] max-h-[52vh] lg:max-h-none bg-slate-900 border-r border-slate-800 flex flex-col shadow-2xl z-20",
+                selectedIncident && "hidden",
+              )}
+            >
+              <CurrentIncident
+                incidents={activeIncidents}
+                selectedIncidentId={selectedIncidentId}
+                onSelect={setSelectedIncident}
+                onActivate={(id) => updateStatus(id, "Dispatched")}
+                getIncidentId={getIncidentId}
+                getLocationName={getTrackedLocationName}
+              />
         <header className="hidden p-5 sm:p-8 border-b border-slate-800 bg-transparent">
           <div className="flex items-center justify-between mb-2">
             <h1 className="text-2xl font-black text-white flex items-center gap-2 tracking-tighter">
@@ -1079,6 +1270,9 @@ export const DispatcherPage = () => {
           </div>
         )}
       </main>
+          </div>
+        )}
+      </div>
       <IVRSimulator isOpen={isIVROpen} onClose={() => setIsIVROpen(false)} />
       {isVideoCallOpen && (
         <VideoSOSModal

@@ -1,22 +1,27 @@
 const { Queue } = require("bullmq");
-const { connection } = require("../lib/redis");
+const { getConnection } = require("../lib/redis");
 
 const INCIDENT_SMS_QUEUE_NAME = "incident-dispatch-sms";
 const SWEEP_JOB_NAME = "sweep-dispatched-incidents";
 
-const incidentSmsQueue = new Queue(INCIDENT_SMS_QUEUE_NAME, { connection });
+let queue = null;
+
+const getIncidentSmsQueue = () => {
+  if (!queue) {
+    const conn = getConnection();
+    if (!conn) {
+      throw new Error("Redis connection is not available for BullMQ queue");
+    }
+    queue = new Queue(INCIDENT_SMS_QUEUE_NAME, { connection: conn });
+  }
+  return queue;
+};
 
 // Schedules the recurring "check for Dispatched incidents that haven't been
-// SMS-confirmed yet" sweep. This replaces the old setInterval that ran
-// inside every backend process — if you ran 2+ instances, each one polled
-// independently and could double-send the same SMS.
-//
-// BullMQ dedupes repeatable jobs by their jobId + repeat config, stored in
-// Redis. So every instance calls this on startup, but only one schedule
-// actually gets registered — re-adding an identical one is a no-op, not a
-// duplicate.
+// SMS-confirmed yet" sweep.
 const scheduleDispatchSweep = async () => {
-  await incidentSmsQueue.add(
+  const q = getIncidentSmsQueue();
+  await q.add(
     SWEEP_JOB_NAME,
     {},
     {
@@ -29,8 +34,12 @@ const scheduleDispatchSweep = async () => {
 };
 
 module.exports = {
-  incidentSmsQueue,
+  get incidentSmsQueue() {
+    return getIncidentSmsQueue();
+  },
+  getIncidentSmsQueue,
   INCIDENT_SMS_QUEUE_NAME,
   SWEEP_JOB_NAME,
   scheduleDispatchSweep,
 };
+

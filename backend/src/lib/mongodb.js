@@ -1,5 +1,13 @@
+const dns = require("dns");
 const mongoose = require("mongoose");
 require("dotenv").config();
+
+// On Windows, local network/ISP DNS often fails querySrv for mongodb+srv://
+if (process.platform === "win32") {
+  try {
+    dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+  } catch (_) {}
+}
 
 function maskMongoUri(uri) {
   if (!uri || typeof uri !== "string") return uri;

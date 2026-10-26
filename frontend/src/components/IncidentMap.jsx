@@ -35,16 +35,31 @@ const AmbulanceIcon = L.icon({
   iconAnchor: [19, 19],
 });
 
+const EmergencyIncidentIcon = L.divIcon({
+  className: "custom-incident-pin",
+  html: `
+    <div style="position:relative;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">
+      <span style="position:absolute;width:36px;height:36px;border-radius:50%;background:rgba(239,68,68,0.45);animation:ping 1.4s cubic-bezier(0,0,0.2,1) infinite;"></span>
+      <span style="position:relative;width:24px;height:24px;border-radius:50%;background:#dc2626;border:2px solid #ffffff;box-shadow:0 0 14px rgba(220,38,38,0.9);display:flex;align-items:center;justify-content:center;color:white;font-size:12px;font-weight:900;">🚨</span>
+    </div>
+  `,
+  iconSize: [36, 36],
+  iconAnchor: [18, 18],
+});
+
 const ChangeView = ({ center }) => {
   const map = useMap();
   React.useEffect(() => {
-    if (center) map.setView(center);
+    if (center && Number.isFinite(center[0]) && Number.isFinite(center[1])) {
+      map.setView(center);
+    }
   }, [center, map]);
   return null;
 };
 
 export const IncidentMap = ({
   userLocation,
+  activeIncident,
   nearestHospital,
   ambulanceLocation,
   allIncidents,
@@ -54,13 +69,20 @@ export const IncidentMap = ({
   className = "",
 }) => {
   const defaultCenter = [9.0197, 38.7469]; // Addis Ababa
+  const hasIncidentCoords =
+    activeIncident &&
+    Number.isFinite(Number(activeIncident.lat)) &&
+    Number.isFinite(Number(activeIncident.lng));
+  const incidentCenter = hasIncidentCoords
+    ? [Number(activeIncident.lat), Number(activeIncident.lng)]
+    : null;
 
   return (
     <div
       className={`w-full overflow-hidden ${className || "h-[280px] sm:h-[360px] rounded-xl shadow-lg border-2 border-slate-200"}`}
     >
       <MapContainer
-        center={userLocation || defaultCenter}
+        center={userLocation || incidentCenter || defaultCenter}
         zoom={13}
         scrollWheelZoom={false}
         className="h-full w-full"
@@ -85,6 +107,47 @@ export const IncidentMap = ({
               }}
             />
           ))}
+
+        {hasIncidentCoords && (
+          <>
+            <Circle
+              center={incidentCenter}
+              radius={180}
+              pathOptions={{
+                color: "#dc2626",
+                fillColor: "#ef4444",
+                fillOpacity: 0.28,
+                weight: 2,
+              }}
+            />
+            <Marker position={incidentCenter} icon={EmergencyIncidentIcon}>
+              <Popup>
+                <div className="space-y-1 p-1 text-slate-900">
+                  <div className="flex items-center gap-1.5 font-black text-red-600 text-xs uppercase tracking-wider">
+                    <span>🚨</span>
+                    <span>{activeIncident.type || "Emergency"} Case</span>
+                  </div>
+                  {activeIncident.reporter_phone && (
+                    <p className="text-[11px] font-bold text-slate-700">
+                      Reporter: {activeIncident.reporter_phone}
+                    </p>
+                  )}
+                  {activeIncident.status && (
+                    <p className="text-[10px] uppercase font-bold text-slate-500">
+                      Status: <span className="text-red-600">{activeIncident.status}</span>
+                    </p>
+                  )}
+                  {activeIncident.description && (
+                    <p className="text-[10px] text-slate-600 italic">
+                      "{activeIncident.description}"
+                    </p>
+                  )}
+                </div>
+              </Popup>
+            </Marker>
+            {!userLocation && <ChangeView center={incidentCenter} />}
+          </>
+        )}
 
         {userLocation && (
           <>

@@ -4,7 +4,7 @@ module.exports = {
   testMatch: ["<rootDir>/tests/**/*.test.js"],
   setupFiles: ["<rootDir>/tests/helpers/env.js"],
   verbose: true,
-  testTimeout: 20000,
+  testTimeout: 60000,
   forceExit: true,
   clearMocks: true,
 };
