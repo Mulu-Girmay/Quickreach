@@ -49,6 +49,9 @@ const VolunteerSchema = new mongoose.Schema({
     enum: ["pending", "approved", "rejected"],
     default: "pending",
   },
+  is_active: { type: Boolean, default: true },
+  must_change_password: { type: Boolean, default: false },
+  must_change_password: { type: Boolean, default: false },
   push_subscriptions: {
     type: [
       new mongoose.Schema(

@@ -2,7 +2,6 @@ require("dotenv").config({ debug: true });
 
 const { createApp } = require("./app");
 const { connectDB } = require("./lib/mongodb");
-const { seedDemoAccounts } = require("./services/seedDemoAccounts");
 const { startIncidentUpdateService } = require("./services/incidentNotifier");
 
 const { app, server } = createApp();
@@ -11,7 +10,6 @@ const PORT = process.env.PORT || 3000;
 const startServer = async () => {
   try {
     await connectDB();
-    await seedDemoAccounts();
     if (process.env.REDIS_URL) {
       await startIncidentUpdateService();
     } else {
