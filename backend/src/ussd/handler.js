@@ -228,6 +228,14 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
     originPrefix = "WEB";
   }
 
+  const trimmedPhone = String(phone || "").trim();
+  const alreadyPrefixed = /^(USSD|WEB|MOBILE)[\s\-]/i.test(trimmedPhone);
+  const formattedPhone = alreadyPrefixed
+    ? trimmedPhone
+    : originPrefix
+      ? `${originPrefix} ${trimmedPhone}`
+      : trimmedPhone;
+
   const accessToken = crypto.randomBytes(32).toString("hex");
 
   const incident = await Incident.create({
@@ -235,7 +243,7 @@ async function triggerEmergency(data, phone, sessionId = null, source = null) {
     lat,
     lng,
     status: "Pending",
-    reporter_phone: originPrefix ? `${originPrefix} ${phone}` : phone,
+    reporter_phone: formattedPhone,
     description: data.description || undefined,
     session_id: sessionId,
     hospital_id: hospitalId,

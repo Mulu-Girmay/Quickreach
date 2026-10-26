@@ -46,6 +46,17 @@ const CONTENT = {
           "በደረቱ መካከል ላይ እጆቻችሁን አደራርባችሁ አጥብቃችሁ ጫኑ",
           "በደቂቃ ከ100-120 ጊዜ መጫን"
         ]
+      },
+      {
+        id: 'bleeding',
+        name: 'የደም መፍሰስ መቆጣጠሪያ',
+        icon: <Droplets className="w-6 h-6 text-red-500" />,
+        videoUrl: "https://www.youtube.com/embed/NxO5L4qMvJg?si=7v8-wXb5J5-yK-s",
+        steps: [
+          "ንጹህ ጨርቅ በመጠቀም በቁስሉ ላይ አጥብቀው ይጫኑ",
+          "እርዳታ እስኪደርስ ድረስ ጫናውን ይቀጥሉ",
+          "ጨርቁ ደም ከጠጣ አያነሱት፤ ሌላ ተጨማሪ ጨርቅ በላዩ ላይ ይጨምሩ"
+        ]
       }
     ]
   }

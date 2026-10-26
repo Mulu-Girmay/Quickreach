@@ -17,13 +17,55 @@ import {
   User,
   Wifi,
   WifiOff,
-  Bus,
+  Ambulance,
 } from "lucide-react";
 import { IncidentMap } from "../components/IncidentMap";
 import { apiFetch } from "../lib/api";
 import { connectSocket } from "../lib/socket";
 import { VolunteerSidebar } from "../components/VolunteerSidebar";
 import { useLocation } from "react-router-dom";
+
+const getIncidentLocationName = (lat, lng) => {
+  const nLat = Number(lat);
+  const nLng = Number(lng);
+  if (!Number.isFinite(nLat) || !Number.isFinite(nLng)) return "Unknown Location";
+
+  const landmarks = [
+    { name: "5 Kilo", lat: 9.0468, lng: 38.7617 },
+    { name: "4 Kilo", lat: 9.0372, lng: 38.7615 },
+    { name: "Piassa", lat: 9.0356, lng: 38.7512 },
+    { name: "Arat Kilo", lat: 9.0406, lng: 38.7612 },
+    { name: "Bole", lat: 8.9894, lng: 38.7884 },
+    { name: "Meskel Square", lat: 9.0106, lng: 38.7612 },
+    { name: "Mexico", lat: 9.0065, lng: 38.7582 },
+    { name: "Sarbet", lat: 9.0097, lng: 38.7326 },
+    { name: "Kolfe", lat: 9.031, lng: 38.705 },
+    { name: "Akaki", lat: 8.875, lng: 38.783 },
+    { name: "Arada", lat: 9.03, lng: 38.75 },
+  ];
+
+  let nearest = null;
+  let minDist = Infinity;
+  for (const lm of landmarks) {
+    const dLat = ((lm.lat - nLat) * Math.PI) / 180;
+    const dLng = ((lm.lng - nLng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((nLat * Math.PI) / 180) *
+        Math.cos((lm.lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    const d = 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    if (d < minDist) {
+      minDist = d;
+      nearest = lm;
+    }
+  }
+
+  if (nearest && minDist <= 5) {
+    return `${nearest.name} (~${minDist.toFixed(1)} km)`;
+  }
+  return `GPS (${nLat.toFixed(3)}, ${nLng.toFixed(3)})`;
+};
 
 export const VolunteerMode = () => {
   const routeLocation = useLocation();
@@ -38,6 +80,9 @@ export const VolunteerMode = () => {
   const [selectedIncident, setSelectedIncident] = useState(null);
   const [responderProgress, setResponderProgress] = useState(0);
   const [acceptedIncidentIds, setAcceptedIncidentIds] = useState([]);
+  const displayedIncidents = isActiveRoute
+    ? nearbyIncidents.filter((inc) => acceptedIncidentIds.includes(inc.id || inc._id))
+    : nearbyIncidents;
   const [stats, setStats] = useState({
     alerts: 0,
     accepted: 0,
@@ -94,7 +139,10 @@ export const VolunteerMode = () => {
       }
     } catch (error) {
       console.error("Volunteer status sync failed:", error.message);
-      setApprovalMessage(error.message);
+      setIsOnline(false);
+      setApprovalMessage(
+        error.message || "Failed to update status. Check your approval state.",
+      );
     }
   }; // Get greeting based on time
   const getGreeting = () => {
@@ -193,6 +241,12 @@ export const VolunteerMode = () => {
         });
       } catch (error) {
         console.error("Volunteer status sync failed:", error.message);
+        if (isOnline) {
+          setIsOnline(false);
+          setApprovalMessage(
+            error.message || "Your volunteer account is pending approval.",
+          );
+        }
       }
     };
 
@@ -396,7 +450,7 @@ export const VolunteerMode = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className={`space-y-6 ${!isActiveRoute ? "hidden" : ""}`}
+              className={`space-y-6 ${isAllIncidentsRoute ? "hidden" : ""}`}
             >
               {/* Live Map */}
               {selectedIncident && (
@@ -426,7 +480,7 @@ export const VolunteerMode = () => {
                       className="h-full rounded-3xl border-0 shadow-none"
                     />
                     <div className="absolute left-4 right-4 top-4 z-[500] rounded-xl border border-red-400/30 bg-slate-950/80 px-3 py-2 backdrop-blur-md">
-                      <div className="flex items-center gap-2 text-xs font-bold text-white"><Bus className="h-4 w-4 animate-pulse text-red-400" />Dispatcher is on the way <span className="ml-auto text-red-300">{responderProgress}%</span></div>
+                      <div className="flex items-center gap-2 text-xs font-bold text-white"><Ambulance className="h-4 w-4 animate-pulse text-red-400" />En route to emergency: citizen assistance in progress <span className="ml-auto text-red-300">{responderProgress}%</span></div>
                       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-700"><div className="h-full rounded-full bg-red-500 transition-all duration-500" style={{ width: `${responderProgress}%` }} /></div>
                     </div>
                     {/* Map overlay indicators */}
@@ -448,25 +502,29 @@ export const VolunteerMode = () => {
               <div id="active-incidents" className="flex items-center gap-2 mb-2">
                 <Bell className="w-5 h-5 text-red-400" />
                 <h2 className="text-xl font-bold">
-                  My Active Incidents ({nearbyIncidents.length})
+                  {isActiveRoute
+                    ? `My Active Missions (${displayedIncidents.length})`
+                    : `Nearby Emergency Alerts (${nearbyIncidents.length})`}
                 </h2>
               </div>
 
               {/* Incident Cards */}
-              {nearbyIncidents.length === 0 ? (
+              {displayedIncidents.length === 0 ? (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border border-[rgba(255,255,255,0.08)] rounded-3xl p-10 text-center"
                 >
                   <p className="text-[#94A3B8]">
-                    {location
-                      ? "No active incidents in your area"
-                      : "Waiting for GPS..."}
+                    {isActiveRoute
+                      ? "No active missions in progress. Go to Dashboard to accept alerts."
+                      : location
+                        ? "No active incidents in your area"
+                        : "Waiting for GPS..."}
                   </p>
                 </motion.div>
               ) : (
-                nearbyIncidents.map((incident, index) => {
+                displayedIncidents.map((incident, index) => {
                   const id = incident.id || incident._id;
                   const isAccepted = acceptedIncidentIds.includes(id);
                   return (
@@ -503,7 +561,11 @@ export const VolunteerMode = () => {
                             </h3>
                             <p className="text-sm text-[#94A3B8] flex items-center gap-1 mt-1">
                               <MapPin className="w-3 h-3" />
-                              {incident.location || "Unknown Location"}
+                              {incident.location ||
+                                getIncidentLocationName(
+                                  incident.lat,
+                                  incident.lng,
+                                )}
                               <span className="mx-1">•</span>
                               <Clock className="w-3 h-3" />
                               {incident.distance
@@ -568,12 +630,12 @@ export const VolunteerMode = () => {
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ delay: 0.3 }}
-        className="fixed bottom-6 right-6 z-50"
+        className="fixed bottom-24 right-4 sm:right-6 z-50"
       >
         <motion.button
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
-          className="w-16 h-16 rounded-2xl backdrop-blur-xl bg-[rgba(15,23,42,0.8)] border border-[rgba(255,255,255,0.1)] shadow-2xl flex items-center justify-center group hover:border-red-500/30 transition-all"
+          className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl backdrop-blur-xl bg-[rgba(15,23,42,0.85)] border border-[rgba(255,255,255,0.15)] shadow-2xl flex items-center justify-center group hover:border-red-500/30 transition-all"
           onClick={() => {
             if (navigator.geolocation) {
               navigator.geolocation.getCurrentPosition(
@@ -593,10 +655,10 @@ export const VolunteerMode = () => {
             }
           }}
         >
-          <RefreshCw className="w-6 h-6 text-[#94A3B8] group-hover:text-red-400 transition-colors" />
+          <RefreshCw className="w-5 h-5 sm:w-6 sm:h-6 text-[#94A3B8] group-hover:text-red-400 transition-colors" />
         </motion.button>
-        <p className="text-[10px] text-[#94A3B8] mt-1 text-center">
-          Update Location
+        <p className="text-[9px] sm:text-[10px] text-[#94A3B8] mt-1 text-center font-bold">
+          GPS Sync
         </p>
       </motion.div>
 
@@ -610,7 +672,7 @@ export const VolunteerMode = () => {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => setIsOnline(!isOnline)}
+          onClick={handleToggleOnline}
           className={`w-full py-4 rounded-2xl backdrop-blur-xl border shadow-2xl font-bold text-lg flex items-center justify-center gap-3 transition-all ${
             isOnline
               ? "bg-[#10B981]/20 border-[#10B981]/30 text-[#10B981] hover:bg-[#10B981]/30"

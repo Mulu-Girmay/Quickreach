@@ -113,8 +113,17 @@ const run = async () => {
 
       console.log("");
 
+      await seedUser({
+        email: volunteerEmail,
+        password: volunteerPassword,
+        role: "volunteer",
+        name: volunteerName,
+        forceReset,
+      });
+
       console.log("\n💡 Credentials overview:");
       console.log(`   Dispatcher: ${dispatcherEmail} (password: ${defaultPassword})`);
+      console.log(`   Volunteer:  ${volunteerEmail} (password: ${volunteerPassword})`);
 
       await mongoose.disconnect();
       process.exit(0);

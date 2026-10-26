@@ -78,7 +78,7 @@ export function AuthProvider({ children }) {
     if (savedUser) {
       try {
         parsedUser = JSON.parse(savedUser);
-      } catch (e) {
+      } catch {
         localStorage.removeItem(AUTH_USER_KEY);
       }
     }

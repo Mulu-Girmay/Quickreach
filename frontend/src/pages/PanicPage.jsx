@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import {
   ShieldAlert,
   Phone,
@@ -162,12 +163,14 @@ export const PanicPage = () => {
       setActiveIncident((prev) => ({ ...prev, ...nextIncident }));
       lastIncidentStatusRef.current = newStatus;
 
-      if (newStatus === "Dispatched" && previousStatus !== "Dispatched") {
-        // Update volunteer name from real incident data
-        if (nextIncident.assigned_volunteer_name) {
-          setVolunteerName(nextIncident.assigned_volunteer_name);
-        }
+      if (nextIncident.assigned_volunteer_name) {
+        setVolunteerName(nextIncident.assigned_volunteer_name);
+      }
+      if (nextIncident.nearestFacility || nextIncident.hospital_name) {
+        setHospitalName(nextIncident.nearestFacility || nextIncident.hospital_name);
+      }
 
+      if (newStatus === "Dispatched" && previousStatus !== "Dispatched") {
         if (!dispatchSimStartedRef.current) {
           addMessage("🚑 Dispatcher activated your case. Help is on the way.");
           addMessage(
@@ -184,7 +187,7 @@ export const PanicPage = () => {
 
         if (dispatchAlertRef.current && !isMuted) {
           dispatchAlertRef.current.volume = 0.8;
-          dispatchAlertRef.current.play().catch(() => {});
+          dispatchAlertRef.current.play().catch(() => { });
         }
 
         if (!dispatchSimStartedRef.current && locationRef.current) {
@@ -340,8 +343,8 @@ export const PanicPage = () => {
       const a =
         Math.sin(dLat / 2) ** 2 +
         Math.cos((newLat * Math.PI) / 180) *
-          Math.cos((currentLocation.lat * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2;
+        Math.cos((currentLocation.lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
       const d = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       setDistance(d.toFixed(2));
       setEta(Math.ceil(((steps - currentStep) / 60) * 2));
@@ -405,6 +408,9 @@ export const PanicPage = () => {
       if (incidentData.assigned_volunteer_name) {
         setVolunteerName(incidentData.assigned_volunteer_name);
       }
+      if (incident.nearestFacility) {
+        setHospitalName(incident.nearestFacility);
+      }
       setActiveIncident(incidentData);
       setIncidentAccessToken(incident.incident_access_token || null);
       setIsCitizenChatOpen(true);
@@ -413,13 +419,6 @@ export const PanicPage = () => {
       alert("Failed to send alert. Call 911 manually.");
     }
   };
-
-  const statusLabel =
-    {
-      Pending: "🔄 Waiting for Dispatcher...",
-      Dispatched: "🚑 Help is on the way!",
-      Resolved: "✅ Incident Resolved",
-    }[incidentStatus] || "";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#0F172A] to-[#020617] text-white font-sans overflow-x-hidden">
@@ -431,7 +430,7 @@ export const PanicPage = () => {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border-b border-[rgba(255,255,255,0.08)] p-4">
+      <header className="relative z-10 backdrop-blur-xl bg-transparent  p-4 ml-25  ">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/20 flex items-center justify-center">
@@ -475,22 +474,20 @@ export const PanicPage = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-4 gap-3 w-full max-w-md">
-              {["Medical", "Fire", "Traffic", "Security"].map((type) => (
+            <div className="grid grid-cols-3 gap-2 w-full max-w-md">
+              {["Medical", "Fire", "Traffic"].map((type) => (
                 <button
                   key={type}
                   onClick={() => setIncidentType(type)}
-                  className={`p-3 rounded-2xl border-2 font-bold text-xs transition-all ${
-                    incidentType === type
-                      ? "border-red-500 bg-red-500/10 text-red-400"
-                      : "border-[rgba(255,255,255,0.08)] text-[#94A3B8] hover:border-[rgba(255,255,255,0.2)]"
-                  }`}
+                  className={`p-3 rounded-2xl border-2 font-bold text-xs transition-all ${incidentType === type
+                    ? "border-red-500 bg-red-500/10 text-red-400"
+                    : "border-[rgba(255,255,255,0.08)] text-[#94A3B8] hover:border-[rgba(255,255,255,0.2)]"
+                    }`}
                 >
                   <span className="block text-xl mb-1">
                     {type === "Medical" && "🏥"}
                     {type === "Fire" && "🔥"}
                     {type === "Traffic" && "🚗"}
-                    {type === "Security" && "🔒"}
                   </span>
                   {type}
                 </button>
@@ -528,7 +525,7 @@ export const PanicPage = () => {
           </div>
         ) : (
           // Active Incident View
-          <div className="flex gap-4 items-start">
+          <div className="flex gap-4 items-start ml-25" >
             <div className="flex-1 space-y-4 min-w-0">
               {/* Status Header */}
               <div className="backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border border-[rgba(255,255,255,0.08)] rounded-3xl p-6">
@@ -555,12 +552,14 @@ export const PanicPage = () => {
                         </span>
                       </div>
                       {eta && (
-                        <div className="flex items-center gap-1 text-sm text-[#94A3B8]">
+                        <div className="flex items-center gap-1.5 text-sm text-[#94A3B8]">
                           <Clock className="w-4 h-4" />
-                          ETA:{" "}
-                          <span className="text-white font-bold">
-                            {eta} min
-                          </span>
+                          <span>ETA: <strong className="text-white">{eta} min</strong></span>
+                          {distance && (
+                            <span className="text-xs text-slate-400">
+                              ({distance} km away)
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -673,23 +672,21 @@ export const PanicPage = () => {
                         )}
                         {index < timeline.length - 1 && (
                           <div
-                            className={`absolute top-6 w-0.5 h-4 ${
-                              item.completed
-                                ? "bg-[#10B981]/30"
-                                : "bg-[rgba(255,255,255,0.05)]"
-                            }`}
+                            className={`absolute top-6 w-0.5 h-4 ${item.completed
+                              ? "bg-[#10B981]/30"
+                              : "bg-[rgba(255,255,255,0.05)]"
+                              }`}
                           />
                         )}
                       </div>
                       <div>
                         <p
-                          className={`text-sm font-medium ${
-                            item.completed
-                              ? "text-[#10B981]"
-                              : item.active
-                                ? "text-white"
-                                : "text-[#94A3B8]"
-                          }`}
+                          className={`text-sm font-medium ${item.completed
+                            ? "text-[#10B981]"
+                            : item.active
+                              ? "text-white"
+                              : "text-[#94A3B8]"
+                            }`}
                         >
                           {item.label}
                         </p>
@@ -756,13 +753,15 @@ export const PanicPage = () => {
                   <span className="text-xs text-[#94A3B8]">Video</span>
                 </button>
 
-                <a
-                  href="/first-aid"
+                <Link
+                  to="/first-aid"
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="p-4 rounded-2xl backdrop-blur-xl bg-[rgba(15,23,42,0.65)] border border-[rgba(255,255,255,0.08)] hover:border-white/20 transition-all flex flex-col items-center gap-1"
                 >
                   <Heart className="w-5 h-5 text-pink-400" />
                   <span className="text-xs text-[#94A3B8]">First Aid</span>
-                </a>
+                </Link>
 
                 <a
                   href="tel:911"
@@ -802,6 +801,7 @@ export const PanicPage = () => {
       )}
 
       <audio ref={dispatchAlertRef} src={DISPATCH_ALERT_URL} preload="auto" />
+      <style>{styles}</style>
     </div>
   );
 };

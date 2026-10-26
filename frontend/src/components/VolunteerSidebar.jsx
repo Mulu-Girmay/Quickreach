@@ -39,7 +39,10 @@ export function VolunteerSidebar() {
         </p>
       </div>
       <button
-        onClick={signOut}
+        onClick={async () => {
+          await signOut();
+          navigate("/volunteer-login");
+        }}
         className="flex items-center justify-center gap-2 rounded-xl p-2 text-xs font-bold text-slate-400 hover:bg-white/10"
       >
         <LogOut className="h-4 w-4" />

@@ -26,7 +26,13 @@ function ConditionalUSSDSimulator() {
   const { user, role } = useAuth();
   const location = useLocation();
   const allowed = role === 'dispatcher' || role === 'admin';
-  const onOpsPages = location.pathname.startsWith('/dispatcher') || location.pathname.startsWith('/analytics');
+  const onOpsPages =
+    location.pathname.startsWith('/dashboard') ||
+    location.pathname.startsWith('/incidents') ||
+    location.pathname.startsWith('/volunteers') ||
+    location.pathname.startsWith('/hospitals') ||
+    location.pathname.startsWith('/dispatcher') ||
+    location.pathname.startsWith('/analytics');
 
   if (!user || !allowed || !onOpsPages) return null;
   return <USSDSimulator />;

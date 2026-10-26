@@ -598,7 +598,7 @@ export const DispatcherPage = () => {
               onUpdateApproval={updateVolunteerApproval}
               onRefresh={fetchVolunteers}
               loading={volunteersLoading}
-              onLocateOnMap={(volunteer) => {
+              onLocateOnMap={(_volunteer) => {
                 setActiveMainTab("incidents");
               }}
               onSelectIncident={(incident) => {
